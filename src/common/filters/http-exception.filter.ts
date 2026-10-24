@@ -38,8 +38,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
       typeof responseBody === 'object' &&
       'message' in responseBody &&
       Array.isArray(responseBody.message)
-        ? responseBody.message.map((detail) => ({ reason: String(detail) }))
+        ? responseBody.message.map((detail, index) => ({
+            field: `request.${index}`,
+            reason: String(detail),
+          }))
         : [];
+    const requestId = randomUUID();
 
     this.logger.error(
       `${request.method} ${request.url}`,
@@ -49,15 +53,20 @@ export class AllExceptionsFilter implements ExceptionFilter {
     response.status(status).json({
       error: {
         code:
-          status === 401
-            ? 'UNAUTHORIZED'
-            : status === 404
-              ? 'NOT_FOUND'
-              : 'HTTP_ERROR',
+          status === 400
+            ? 'VALIDATION_ERROR'
+            : status === 401
+              ? 'UNAUTHORIZED'
+              : status === 404
+                ? 'NOT_FOUND'
+                : status === 429
+                  ? 'RATE_LIMIT_EXCEEDED'
+                  : 'HTTP_ERROR',
         message,
-        requestId: randomUUID(),
+        requestId,
         details,
       },
     });
+    response.setHeader('X-Request-Id', requestId);
   }
 }

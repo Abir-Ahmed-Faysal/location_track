@@ -3,6 +3,8 @@ import {
   IsArray,
   IsBoolean,
   IsDateString,
+  IsIn,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -31,6 +33,8 @@ export class LocationEventDto {
 
 /** Transport DTO for atomic batch ingestion. */
 export class IngestBatchDto {
+  @IsInt()
+  @IsIn([1])
   schemaVersion!: number;
 
   @IsArray()

@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS "Device" (
   CONSTRAINT "Device_pkey" PRIMARY KEY ("id")
 );
 
+
 CREATE UNIQUE INDEX IF NOT EXISTS "Device_externalDeviceKey_key"
   ON "Device"("externalDeviceKey");
 

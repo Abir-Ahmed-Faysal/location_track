@@ -103,6 +103,14 @@ _(To be filled during implementation)_
 - [x] Added authenticated batch location ingestion and latest-location persistence code (verification pending)
 - [x] Added PostGIS migration, geography column, and spatial index (verification pending)
 - [x] Added latest-location and cursor-paginated history read endpoints (verification pending)
+- [x] Added authenticated device registration and lookup endpoints (verification pending)
+- [x] Verified runtime startup, health probes, and unauthenticated device access response
+- [x] Verified authenticated signup, login, device registration, batch ingest, and latest-location read
+- [x] Verified duplicate batch classification and history read (`accepted=1`, retry `duplicates=1`)
+- [x] Added owner-scoped device and location access to prevent cross-user data leakage
+- [x] Applied and verified device ownership migration
+- [x] Added in-memory per-IP rate limiting for batch ingestion with `Retry-After`
+- [x] Added invalid-cursor handling and 404 isolation for latest/history reads
 - [ ] Authentication boundary and rate limiting
 - [ ] PostGIS schema and migrations
 
@@ -139,9 +147,11 @@ _(To be filled during implementation)_
 ### Test Results
 
 - Lint: PASS (`pnpm lint`)
-- Build: PASS (`pnpm build`)
+- Build: PASS (`pnpm build`, after repairing pnpm dependency links)
 - Unit tests: PARTIAL — 106 passed, 3 failed due existing test dependency setup and missing `DATABASE_URL` in Jest process
 - PostGIS integration: PASS for extension and schema installation; endpoint integration still pending
+- Runtime startup: PASS with local development environment values
+- Health probes: PASS — `/api/v1/health/live` and `/api/v1/health/ready` returned 200
 
 ---
 

@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { validateBatch } from '../../core/domain/location-event.schema';
 import { classifyFreshness } from '../../core/domain/freshness';
@@ -10,7 +14,7 @@ export class LocationsService {
   constructor(private readonly prisma: PrismaService) {}
 
   /** Atomically classifies duplicates, stores new events, and updates latest state. */
-  async ingestBatch(input: IngestBatchDto) {
+  async ingestBatch(input: IngestBatchDto, ownerId: string) {
     const validation = validateBatch(input);
     if (!validation.valid) {
       throw new BadRequestException({
@@ -21,6 +25,16 @@ export class LocationsService {
     }
 
     const eventIds = validation.events.map((event) => event.eventId);
+    const deviceIds = [
+      ...new Set(validation.events.map((event) => event.deviceId)),
+    ];
+    const ownedDevices = await this.prisma.device.findMany({
+      where: { id: { in: deviceIds }, ownerId, status: 'ACTIVE' },
+      select: { id: true },
+    });
+    if (ownedDevices.length !== deviceIds.length) {
+      throw new BadRequestException('One or more devices are not available');
+    }
     const existing = await this.prisma.locationEvent.findMany({
       where: { eventId: { in: eventIds } },
       select: { eventId: true },
@@ -100,22 +114,47 @@ export class LocationsService {
   }
 
   /** Returns the materialized latest location for one device. */
-  async getLatest(deviceId: string) {
-    return this.prisma.latestLocation.findUnique({ where: { deviceId } });
+  async getLatest(deviceId: string, ownerId: string) {
+    const latest = await this.prisma.latestLocation.findFirst({
+      where: { deviceId, device: { ownerId, status: 'ACTIVE' } },
+    });
+    if (!latest) throw new NotFoundException('Device');
+    return latest;
   }
 
   /** Returns history ordered newest first using an opaque capturedAt/id cursor. */
-  async getHistory(deviceId: string, limit = 50, cursor?: string) {
+  async getHistory(
+    deviceId: string,
+    ownerId: string,
+    limit = 50,
+    cursor?: string,
+  ) {
     const safeLimit = Math.min(Math.max(limit, 1), 200);
-    const decoded = cursor
-      ? (JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as {
-          capturedAt: string;
-          id: string;
-        })
-      : null;
+    let decoded: { capturedAt: string; id: string } | null = null;
+    if (cursor) {
+      try {
+        const value: unknown = JSON.parse(
+          Buffer.from(cursor, 'base64url').toString('utf8'),
+        );
+        if (
+          !value ||
+          typeof value !== 'object' ||
+          !('capturedAt' in value) ||
+          !('id' in value) ||
+          typeof value.capturedAt !== 'string' ||
+          typeof value.id !== 'string'
+        ) {
+          throw new Error('invalid cursor');
+        }
+        decoded = { capturedAt: value.capturedAt, id: value.id };
+      } catch {
+        throw new BadRequestException('Invalid history cursor');
+      }
+    }
     const items = await this.prisma.locationEvent.findMany({
       where: {
         deviceId,
+        device: { ownerId, status: 'ACTIVE' },
         ...(decoded
           ? {
               OR: [
@@ -131,6 +170,13 @@ export class LocationsService {
       orderBy: [{ capturedAt: 'desc' }, { id: 'desc' }],
       take: safeLimit + 1,
     });
+    if (items.length === 0 && !cursor) {
+      const device = await this.prisma.device.findFirst({
+        where: { id: deviceId, ownerId, status: 'ACTIVE' },
+        select: { id: true },
+      });
+      if (!device) throw new NotFoundException('Device');
+    }
     const hasMore = items.length > safeLimit;
     const page = hasMore ? items.slice(0, safeLimit) : items;
     const last = page.at(-1);

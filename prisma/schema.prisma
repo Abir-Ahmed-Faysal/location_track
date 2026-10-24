@@ -26,6 +26,7 @@ model User {
   updatedAt DateTime @updatedAt
 
   sessions  Session[]
+  devices   Device[]
 }
 
 
@@ -54,6 +55,8 @@ model Device {
   status           String          @default("ACTIVE")
   lastSeenAt       DateTime?
   createdAt        DateTime        @default(now())
+  ownerId          String?
+  owner            User?           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   events           LocationEvent[]
   latestLocation   LatestLocation?
 }
