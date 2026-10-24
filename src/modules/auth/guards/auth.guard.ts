@@ -28,13 +28,21 @@ export class AuthGuard implements CanActivate {
 
     const authHeader = request.headers.authorization;
     const accessToken = this.extractBearerToken(authHeader);
-    const accessTokenFromCookie = this.getCookieValue(request.headers.cookie, 'access_token');
-    const refreshToken = this.getCookieValue(request.headers.cookie, 'refresh_token');
+    const accessTokenFromCookie = this.getCookieValue(
+      request.headers.cookie,
+      'access_token',
+    );
+    const refreshToken = this.getCookieValue(
+      request.headers.cookie,
+      'refresh_token',
+    );
 
     if (accessToken || accessTokenFromCookie) {
       try {
         const tokenToVerify = accessToken ?? accessTokenFromCookie;
-        const payload = this.jwtService.verifyAccessToken(tokenToVerify as string);
+        const payload = this.jwtService.verifyAccessToken(
+          tokenToVerify as string,
+        );
         request.user = {
           id: payload.sub,
           email: payload.email,
@@ -84,7 +92,10 @@ export class AuthGuard implements CanActivate {
     return token;
   }
 
-  private getCookieValue(cookieHeader: string | undefined, cookieName: string): string | undefined {
+  private getCookieValue(
+    cookieHeader: string | undefined,
+    cookieName: string,
+  ): string | undefined {
     if (!cookieHeader) {
       return undefined;
     }
@@ -101,7 +112,10 @@ export class AuthGuard implements CanActivate {
     return decodeURIComponent(cookie.slice(cookieName.length + 1));
   }
 
-  private setAuthCookies(response: Response, tokens: { accessToken: string; refreshToken: string }) {
+  private setAuthCookies(
+    response: Response,
+    tokens: { accessToken: string; refreshToken: string },
+  ) {
     response.cookie('access_token', tokens.accessToken, {
       httpOnly: true,
       sameSite: 'lax',

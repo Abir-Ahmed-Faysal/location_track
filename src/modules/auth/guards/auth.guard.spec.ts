@@ -24,7 +24,10 @@ describe('AuthGuard', () => {
 
         throw new Error('expired');
       }),
-      verifyRefreshToken: jest.fn(() => ({ sub: 'user-1', email: 'user@example.com' })),
+      verifyRefreshToken: jest.fn(() => ({
+        sub: 'user-1',
+        email: 'user@example.com',
+      })),
     };
 
     const guard = new AuthGuard(authService as never, jwtService as never);

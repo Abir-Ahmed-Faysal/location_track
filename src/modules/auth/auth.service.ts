@@ -19,7 +19,9 @@ export class AuthService {
   ) {}
 
   async signup(dto: SignupDto) {
-    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const existing = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
     if (existing) {
       throw new ConflictException('Email already exists');
     }
@@ -48,7 +50,9 @@ export class AuthService {
   }
 
   async login(dto: LoginDto, userAgent?: string, ipAddress?: string) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -58,8 +62,14 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const accessToken = this.jwtService.generateAccessToken({ sub: user.id, email: user.email });
-    const refreshToken = this.jwtService.generateRefreshToken({ sub: user.id, email: user.email });
+    const accessToken = this.jwtService.generateAccessToken({
+      sub: user.id,
+      email: user.email,
+    });
+    const refreshToken = this.jwtService.generateRefreshToken({
+      sub: user.id,
+      email: user.email,
+    });
     const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
 
     await this.prisma.session.create({
@@ -100,12 +110,18 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token has expired');
     }
 
-    const isValid = await bcrypt.compare(dto.refreshToken, session.refreshTokenHash);
+    const isValid = await bcrypt.compare(
+      dto.refreshToken,
+      session.refreshTokenHash,
+    );
     if (!isValid) {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    const newRefreshToken = this.jwtService.generateRefreshToken({ sub: userId, email: payload.email as string });
+    const newRefreshToken = this.jwtService.generateRefreshToken({
+      sub: userId,
+      email: payload.email,
+    });
     const newRefreshTokenHash = await bcrypt.hash(newRefreshToken, 10);
 
     await this.prisma.session.update({
@@ -118,7 +134,10 @@ export class AuthService {
       },
     });
 
-    const accessToken = this.jwtService.generateAccessToken({ sub: userId, email: payload.email as string });
+    const accessToken = this.jwtService.generateAccessToken({
+      sub: userId,
+      email: payload.email,
+    });
 
     return {
       accessToken,
@@ -137,7 +156,10 @@ export class AuthService {
       throw new NotFoundException('Session not found');
     }
 
-    const isValid = await bcrypt.compare(refreshToken, session.refreshTokenHash);
+    const isValid = await bcrypt.compare(
+      refreshToken,
+      session.refreshTokenHash,
+    );
     if (!isValid) {
       throw new UnauthorizedException('Invalid refresh token');
     }

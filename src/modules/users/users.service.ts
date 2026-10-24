@@ -67,14 +67,19 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    const isValidPassword = await bcrypt.compare(dto.currentPassword, user.password);
+    const isValidPassword = await bcrypt.compare(
+      dto.currentPassword,
+      user.password,
+    );
 
     if (!isValidPassword) {
       throw new UnauthorizedException('Current password is incorrect');
     }
 
     if (dto.currentPassword === dto.newPassword) {
-      throw new BadRequestException('New password must be different from the current password');
+      throw new BadRequestException(
+        'New password must be different from the current password',
+      );
     }
 
     const hashedPassword = await bcrypt.hash(dto.newPassword, 10);

@@ -13,11 +13,4 @@ export interface AppConfig {
   frontend: {
     url: string;
   };
-  mail: {
-    host: string;
-    port: number;
-    user: string;
-    pass: string;
-    from: string;
-  };
 }

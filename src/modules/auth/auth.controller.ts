@@ -93,7 +93,10 @@ export class AuthController {
     return this.authService.profile(userId);
   }
 
-  private setAuthCookies(response: Response | undefined, tokens: { accessToken: string; refreshToken: string }) {
+  private setAuthCookies(
+    response: Response | undefined,
+    tokens: { accessToken: string; refreshToken: string },
+  ) {
     if (!response) {
       return;
     }

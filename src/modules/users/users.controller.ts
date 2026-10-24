@@ -64,10 +64,7 @@ export class UsersController {
   }
 
   @Delete('me')
-  deleteUser(
-    @Req() req: AuthenticatedRequest,
-    @Body() dto: DeleteUserDto,
-  ) {
+  deleteUser(@Req() req: AuthenticatedRequest, @Body() dto: DeleteUserDto) {
     const user = req.user;
     if (!user?.id) {
       throw new UnauthorizedException('Authenticated user not found');

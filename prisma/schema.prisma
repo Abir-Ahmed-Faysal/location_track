@@ -46,13 +46,3 @@ model Session {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
-
-model Subscription {
-  id         Int      @id @default(autoincrement())
-
-  email      String   @unique
-
-  status     Boolean  @default(true)
-
-  createdAt  DateTime @default(now())
-}

@@ -21,16 +21,6 @@ export const envSchema = z.object({
   REFRESH_TOKEN_EXPIRES_IN: z.string(),
 
   FRONTEND_URL: z.string().url(),
-
-  EMAIL_SENDER_SMTP_HOST: z.string(),
-
-  EMAIL_SENDER_SMTP_PORT: z.coerce.number(),
-
-  EMAIL_SENDER_SMTP_USER: z.string(),
-
-  EMAIL_SENDER_SMTP_PASS: z.string(),
-
-  EMAIL_SENDER_SMTP_FROM: z.string(),
 });
 
 export const validate = (

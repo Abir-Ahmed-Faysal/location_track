@@ -6,8 +6,6 @@ import configuration from './config/configration';
 import { validate } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
-import { SubscriptionModule } from './modules/subscription/subscription.module';
-import { MailModule } from './modules/mail/mail.module';
 import { UsersModule } from './modules/users/users.module';
 
 @Module({
@@ -21,8 +19,6 @@ import { UsersModule } from './modules/users/users.module';
     PrismaModule,
     AuthModule,
     UsersModule,
-    SubscriptionModule,
-    MailModule,
   ],
   controllers: [AppController],
   providers: [AppService],
