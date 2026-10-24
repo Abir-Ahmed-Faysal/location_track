@@ -21,6 +21,8 @@ export const envSchema = z.object({
   REFRESH_TOKEN_EXPIRES_IN: z.string(),
 
   FRONTEND_URL: z.string().url(),
+
+  RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(60),
 });
 
 export const validate = (

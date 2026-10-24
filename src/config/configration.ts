@@ -18,4 +18,8 @@ export default () => ({
   frontend: {
     url: process.env.FRONTEND_URL,
   },
+
+  rateLimit: {
+    perMinute: Number(process.env.RATE_LIMIT_PER_MINUTE ?? 60),
+  },
 });

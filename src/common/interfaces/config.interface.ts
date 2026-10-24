@@ -13,4 +13,7 @@ export interface AppConfig {
   frontend: {
     url: string;
   };
+  rateLimit: {
+    perMinute: number;
+  };
 }

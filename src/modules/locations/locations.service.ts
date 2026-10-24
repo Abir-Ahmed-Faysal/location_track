@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { validateBatch } from '../../core/domain/location-event.schema';
 import { classifyFreshness } from '../../core/domain/freshness';
+import { classifyAccuracy } from '../../core/domain/accuracy';
 import type { IngestBatchDto } from './dto/ingest-batch.dto';
 
 /** Persists validated location batches and maintains the latest read model. */
@@ -103,11 +104,31 @@ export class LocationsService {
           },
         });
       }
+
+      await tx.device.updateMany({
+        where: { id: { in: deviceIds }, ownerId, status: 'ACTIVE' },
+        data: { lastSeenAt: serverTime },
+      });
     });
 
+    const persistedFromThisBatch = await this.prisma.locationEvent.findMany({
+      where: {
+        eventId: { in: newEvents.map((event) => event.eventId) },
+        receivedAt: serverTime,
+      },
+      select: { eventId: true },
+    });
+    const acceptedIds = persistedFromThisBatch.map((event) => event.eventId);
+    const acceptedSet = new Set(acceptedIds);
+
     return {
-      accepted: newEvents.map((event) => event.eventId),
-      duplicates: [...existingIds],
+      accepted: acceptedIds,
+      duplicates: [
+        ...existingIds,
+        ...newEvents
+          .map((event) => event.eventId)
+          .filter((eventId) => !acceptedSet.has(eventId)),
+      ],
       rejected: [],
       serverTime: serverTime.toISOString(),
     };
@@ -119,7 +140,11 @@ export class LocationsService {
       where: { deviceId, device: { ownerId, status: 'ACTIVE' } },
     });
     if (!latest) throw new NotFoundException('Device');
-    return latest;
+    return {
+      ...latest,
+      freshnessStatus: classifyFreshness(latest.capturedAt),
+      accuracyClassification: classifyAccuracy(latest.accuracyM),
+    };
   }
 
   /** Returns history ordered newest first using an opaque capturedAt/id cursor. */
@@ -129,6 +154,11 @@ export class LocationsService {
     limit = 50,
     cursor?: string,
   ) {
+    if (!Number.isInteger(limit) || limit < 1 || limit > 200) {
+      throw new BadRequestException(
+        'History limit must be an integer between 1 and 200',
+      );
+    }
     const safeLimit = Math.min(Math.max(limit, 1), 200);
     let decoded: { capturedAt: string; id: string } | null = null;
     if (cursor) {
@@ -145,6 +175,9 @@ export class LocationsService {
           typeof value.id !== 'string'
         ) {
           throw new Error('invalid cursor');
+        }
+        if (!Number.isFinite(new Date(value.capturedAt).getTime())) {
+          throw new Error('invalid cursor timestamp');
         }
         decoded = { capturedAt: value.capturedAt, id: value.id };
       } catch {

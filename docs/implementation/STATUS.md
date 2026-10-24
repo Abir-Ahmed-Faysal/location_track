@@ -109,8 +109,10 @@ _(To be filled during implementation)_
 - [x] Verified duplicate batch classification and history read (`accepted=1`, retry `duplicates=1`)
 - [x] Added owner-scoped device and location access to prevent cross-user data leakage
 - [x] Applied and verified device ownership migration
-- [x] Added in-memory per-IP rate limiting for batch ingestion with `Retry-After`
+- [x] Added in-memory per-IP and per-device rate limiting for location requests with `Retry-After` and rate-limit headers
 - [x] Added invalid-cursor handling and 404 isolation for latest/history reads
+- [x] Added dynamic freshness/accuracy classification and history limit validation
+- [x] Updates active device `lastSeenAt` after successful ingestion
 - [ ] Authentication boundary and rate limiting
 - [ ] PostGIS schema and migrations
 
@@ -138,7 +140,7 @@ _(To be filled during implementation)_
 ### Migration Safety
 
 - Prisma client generation: PASS (`pnpm generate`)
-- Database connection: PASS (`locationtrack` on localhost:5432)
+- Database connection: PASS (`locationtrack` on localhost:5433 via Docker PostGIS)
 - Existing migrations 1 and 2: APPLIED
 - Location engine migration: PASS against Docker `postgis/postgis:16-3.4`
 - PostGIS 3.4 and `geography(Point,4326)` verified in the running container
@@ -152,6 +154,12 @@ _(To be filled during implementation)_
 - PostGIS integration: PASS for extension and schema installation; endpoint integration still pending
 - Runtime startup: PASS with local development environment values
 - Health probes: PASS — `/api/v1/health/live` and `/api/v1/health/ready` returned 200
+- Rate-limit implementation: PASS — IP and device scopes enforced in memory; Redis remains the production horizontal-scaling path
+- Corrected CORS bootstrap to use the validated `FRONTEND_URL` environment variable
+- Added expired rate-limit bucket cleanup to prevent unbounded in-memory growth
+- Added `AuthAdapter` injection boundary with the default local JWT adapter; deployments can replace the `AUTH_ADAPTER` provider
+- Added production multi-stage `Dockerfile` and documented safe environment defaults in `.env.example`
+- Extended Docker Compose with an API service, PostGIS health dependency, and container-local database URL
 
 ---
 

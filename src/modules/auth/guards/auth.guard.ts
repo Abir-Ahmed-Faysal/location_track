@@ -2,11 +2,15 @@ import {
   CanActivate,
   ExecutionContext,
   Injectable,
+  Inject,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthService } from '../auth.service';
 import { JwtService } from '../jwt.service';
+import { AUTH_ADAPTER } from '../../../core/ports/auth.port';
+import type { AuthAdapter } from '../../../core/ports/auth.port';
 
 interface AuthenticatedRequest extends Request {
   user?: {
@@ -20,6 +24,9 @@ export class AuthGuard implements CanActivate {
   constructor(
     private readonly authService: AuthService,
     private readonly jwtService: JwtService,
+    @Optional()
+    @Inject(AUTH_ADAPTER)
+    private readonly authAdapter?: AuthAdapter,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -40,6 +47,17 @@ export class AuthGuard implements CanActivate {
     if (accessToken || accessTokenFromCookie) {
       try {
         const tokenToVerify = accessToken ?? accessTokenFromCookie;
+        const adapterContext = accessToken
+          ? await this.authAdapter?.validateCredentials({
+              bearerToken: accessToken,
+            })
+          : null;
+        if (adapterContext) {
+          request.user = {
+            id: adapterContext.subjectId,
+          };
+          return true;
+        }
         const payload = this.jwtService.verifyAccessToken(
           tokenToVerify as string,
         );

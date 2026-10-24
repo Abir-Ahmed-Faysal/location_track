@@ -51,7 +51,7 @@ export class LocationsController {
     return this.locationsService.getHistory(
       deviceId,
       request?.user?.id as string,
-      limit ? Number(limit) : undefined,
+      limit === undefined ? undefined : Number(limit),
       cursor,
     );
   }
