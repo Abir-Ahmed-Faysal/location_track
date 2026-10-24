@@ -1,5 +1,4 @@
 import type {
-  LocationEvent,
   LocationEventInput,
   PersistedLocationEvent,
 } from '../domain/location-event.js';

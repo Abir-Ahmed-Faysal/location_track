@@ -1,7 +1,4 @@
-import type {
-  LocationEvent,
-  PersistedLocationEvent,
-} from './location-event.js';
+import type { LocationEvent } from './location-event.js';
 
 /**
  * Event ordering policy for latest-location updates.
