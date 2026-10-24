@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { randomUUID } from 'crypto';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -22,10 +23,23 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
+    const responseBody =
+      exception instanceof HttpException ? exception.getResponse() : null;
     const message =
-      exception instanceof HttpException
-        ? exception.getResponse()
-        : 'Internal server error';
+      typeof responseBody === 'string'
+        ? responseBody
+        : responseBody &&
+            typeof responseBody === 'object' &&
+            'message' in responseBody
+          ? String(responseBody.message)
+          : 'Internal server error';
+    const details =
+      responseBody &&
+      typeof responseBody === 'object' &&
+      'message' in responseBody &&
+      Array.isArray(responseBody.message)
+        ? responseBody.message.map((detail) => ({ reason: String(detail) }))
+        : [];
 
     this.logger.error(
       `${request.method} ${request.url}`,
@@ -33,10 +47,17 @@ export class AllExceptionsFilter implements ExceptionFilter {
     );
 
     response.status(status).json({
-      statusCode: status,
-      timestamp: new Date().toISOString(),
-      path: request.url,
-      message,
+      error: {
+        code:
+          status === 401
+            ? 'UNAUTHORIZED'
+            : status === 404
+              ? 'NOT_FOUND'
+              : 'HTTP_ERROR',
+        message,
+        requestId: randomUUID(),
+        details,
+      },
     });
   }
 }

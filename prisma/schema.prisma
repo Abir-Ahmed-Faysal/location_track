@@ -46,3 +46,49 @@ model Session {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+model Device {
+  id               String          @id @default(uuid())
+  externalDeviceKey String         @unique
+  platform         String
+  status           String          @default("ACTIVE")
+  lastSeenAt       DateTime?
+  createdAt        DateTime        @default(now())
+  events           LocationEvent[]
+  latestLocation   LatestLocation?
+}
+
+model LocationEvent {
+  id                    String   @id @default(uuid())
+  eventId               String   @unique
+  deviceId              String
+  latitude              Float
+  longitude             Float
+  position              Unsupported("geography(Point,4326)")?
+  accuracyM             Float?
+  capturedAt            DateTime
+  receivedAt            DateTime @default(now())
+  sequence              Int?
+  provider              String?
+  altitudeM             Float?
+  speedMps              Float?
+  bearingDeg            Float?
+  platformVersion       String?
+  mockLocationIndicator Boolean?
+  device                Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId, capturedAt])
+}
+
+model LatestLocation {
+  id              String   @id @default(uuid())
+  deviceId        String   @unique
+  eventId         String   @unique
+  latitude        Float
+  longitude       Float
+  accuracyM       Float?
+  capturedAt      DateTime
+  receivedAt      DateTime
+  freshnessStatus String
+  device          Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+}

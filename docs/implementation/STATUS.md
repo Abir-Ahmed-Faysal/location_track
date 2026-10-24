@@ -11,7 +11,7 @@
 |---|---|---|---|---|
 | 0 | Audit & Safe Baseline | ✅ **COMPLETE** | 2026-10-25 | 2026-10-25 |
 | 1 | Core Contracts | ⬜ NOT STARTED | — | — |
-| 2 | Backend Ingestion & Persistence | ⬜ NOT STARTED | — | — |
+| 2 | Backend Ingestion & Persistence | 🟡 IN PROGRESS | 2026-10-25 | — |
 | 3 | Android SDK | ⬜ NOT STARTED | — | — |
 | 4 | Realtime & Operations | ⬜ NOT STARTED | — | — |
 | 5 | Packaging & Adoption | ⬜ NOT STARTED | — | — |
@@ -95,6 +95,17 @@ _(To be filled during implementation)_
 
 ## Phase 2 — Backend Ingestion & Persistence
 
+### Work Completed So Far
+
+- [x] Added `/api/v1/health/live` liveness probe
+- [x] Added `/api/v1/health/ready` database readiness probe
+- [x] Updated the global exception response to the PRD `error` envelope
+- [x] Added authenticated batch location ingestion and latest-location persistence code (verification pending)
+- [x] Added PostGIS migration, geography column, and spatial index (verification pending)
+- [x] Added latest-location and cursor-paginated history read endpoints (verification pending)
+- [ ] Authentication boundary and rate limiting
+- [ ] PostGIS schema and migrations
+
 ### Exit Gate Checklist
 
 - [ ] PostGIS enabled in database
@@ -118,11 +129,19 @@ _(To be filled during implementation)_
 
 ### Migration Safety
 
-_(To be filled during implementation)_
+- Prisma client generation: PASS (`pnpm generate`)
+- Database connection: PASS (`locationtrack` on localhost:5432)
+- Existing migrations 1 and 2: APPLIED
+- Location engine migration: PASS against Docker `postgis/postgis:16-3.4`
+- PostGIS 3.4 and `geography(Point,4326)` verified in the running container
+- No database reset or drop was performed
 
 ### Test Results
 
-_(To be filled during implementation)_
+- Lint: PASS (`pnpm lint`)
+- Build: PASS (`pnpm build`)
+- Unit tests: PARTIAL — 106 passed, 3 failed due existing test dependency setup and missing `DATABASE_URL` in Jest process
+- PostGIS integration: PASS for extension and schema installation; endpoint integration still pending
 
 ---
 

@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: location-tracker-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: locationtrack
+    ports:
+      - "5433:5432"
+    volumes:
+      - location_tracker_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d locationtrack"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  location_tracker_postgres:
