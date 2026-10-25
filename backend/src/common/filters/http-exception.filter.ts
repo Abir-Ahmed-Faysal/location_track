@@ -59,6 +59,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
               ? 'UNAUTHORIZED'
               : status === 404
                 ? 'NOT_FOUND'
+              : status === 403
+                ? 'FORBIDDEN'
                 : status === 429
                   ? 'RATE_LIMIT_EXCEEDED'
                   : 'HTTP_ERROR',

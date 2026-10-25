@@ -13,6 +13,10 @@ datasource db {
   provider = "postgresql"
 }
 
+enum UserRole {
+  USER
+  ADMIN
+}
 
 
 model User {
@@ -21,6 +25,7 @@ model User {
   email     String   @unique
   password  String
   name      String?  @db.VarChar(20)
+  role      UserRole @default(USER)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

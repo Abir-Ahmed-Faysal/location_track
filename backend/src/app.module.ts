@@ -12,6 +12,7 @@ import { LocationsModule } from './modules/locations/locations.module';
 import { DevicesModule } from './modules/devices/devices.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     DevicesModule,
     MetricsModule,
     RealtimeModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

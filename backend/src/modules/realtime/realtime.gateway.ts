@@ -16,8 +16,18 @@ import { MetricsService } from '../metrics/metrics.service';
 type SubscriptionMessage = { deviceId?: string };
 type AuthSocket = Socket;
 
+const trustedOrigins = (
+  process.env.FRONTEND_URLS ?? process.env.FRONTEND_URL ?? ''
+)
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 /** Authenticated, owner-scoped realtime subscription gateway. */
-@WebSocketGateway({ namespace: '/ws/v1/locations', cors: { origin: '*' } })
+@WebSocketGateway({
+  namespace: '/ws/v1/locations',
+  cors: { origin: trustedOrigins, credentials: true },
+})
 @Injectable()
 export class RealtimeGateway {
   @WebSocketServer()
@@ -30,7 +40,10 @@ export class RealtimeGateway {
   ) {}
 
   handleConnection(client: AuthSocket): void {
-    const token = this.extractToken(client.handshake.auth?.token);
+    const token = this.extractToken(
+      client.handshake.auth?.token,
+      client.handshake.headers.cookie,
+    );
     if (!token) {
       client.disconnect(true);
       return;
@@ -60,11 +73,17 @@ export class RealtimeGateway {
       this.metrics.recordWebsocketSubscription('rejected');
       throw new WsException('Subscription not authorized');
     }
-    const device = await this.prisma.device.findFirst({
-      where: { id: deviceId, ownerId: userId, status: 'ACTIVE' },
-      select: { id: true },
-    });
-    if (!device) {
+    const [user, device] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } }),
+      this.prisma.device.findFirst({
+        where: { id: deviceId, status: 'ACTIVE' },
+        select: { id: true, ownerId: true },
+      }),
+    ]);
+    const authorized = Boolean(
+      user && device && (user.role === 'ADMIN' || device.ownerId === userId),
+    );
+    if (!authorized) {
       this.metrics.recordWebsocketSubscription('rejected');
       throw new WsException('Subscription not authorized');
     }
@@ -99,8 +118,18 @@ export class RealtimeGateway {
     this.metrics.recordWebsocketDelivery('delivered');
   }
 
-  private extractToken(value: unknown): string | undefined {
-    return typeof value === 'string' && value.length > 0 ? value : undefined;
+  private extractToken(
+    value: unknown,
+    cookieHeader?: string,
+  ): string | undefined {
+    if (typeof value === 'string' && value.length > 0) return value;
+    const cookie = cookieHeader
+      ?.split(';')
+      .map((part) => part.trim())
+      .find((part) => part.startsWith('access_token='));
+    return cookie
+      ? decodeURIComponent(cookie.slice('access_token='.length))
+      : undefined;
   }
 
   private getUserId(client: Socket): string | undefined {
