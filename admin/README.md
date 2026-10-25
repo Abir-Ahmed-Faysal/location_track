@@ -5,9 +5,9 @@ Read-only administrator dashboard built with React, TypeScript, Vite, TanStack Q
 ## Run locally
 
 1. Install dependencies: `pnpm --dir admin install`.
-2. Copy `.env.example` to `.env.local` and set `VITE_API_BASE_URL` if the backend is not at `http://localhost:3000/api/v1`.
-3. Start PostgreSQL and apply migrations with `pnpm --dir backend exec prisma migrate deploy`. Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `backend/.env`, and include `http://localhost:3001` in the backend `FRONTEND_URLS` allowlist.
-4. Start the dashboard: `pnpm --dir admin dev` and open `http://localhost:3001`.
+2. Copy `.env.example` to `.env.local`; the default API URL is `http://localhost:5000/api/v1`.
+3. Start PostgreSQL and apply migrations with `pnpm --dir backend exec prisma migrate deploy`. Set `PORT=5000`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` in `backend/.env`, and allow `http://localhost:3000` in the backend CORS origin.
+4. Start the dashboard: `pnpm --dir admin dev` and open `http://localhost:3000`.
 
 The browser uses the backend's HttpOnly `access_token` and `refresh_token` cookies. The access token returned in the login response is not stored in browser storage. Admin APIs and realtime subscriptions verify the database role on the server.
 
@@ -47,7 +47,7 @@ The map uses 100 devices per page because that is the API's maximum page size; t
 
 ## Map styles and attribution
 
-OpenFreeMap Liberty is the default street style and needs no browser key. MapTiler Satellite and Hybrid require a **public browser key** in `VITE_MAPTILER_KEY`; restrict the key to the deployed dashboard origins and only the needed map APIs. Never put a server secret in a `VITE_` variable. MapLibre displays style-provided attribution, and the map also identifies OpenStreetMap contributors and OpenFreeMap.
+OpenFreeMap Liberty is the default street style and needs no browser key. MapTiler Satellite and Hybrid require a real **public browser key** in `VITE_MAPTILER_KEY`; the example file intentionally leaves it blank. Restrict the key to the deployed dashboard origins and only the needed map APIs. Never put a server secret in a `VITE_` variable. MapLibre displays style-provided attribution, and the map also identifies OpenStreetMap contributors and OpenFreeMap.
 
 The Maps URLs use MapTiler's documented MapLibre style endpoint and its satellite/hybrid map IDs: [MapTiler MapLibre guide](https://docs.maptiler.com/maplibre/), [Satellite dataset](https://docs.maptiler.com/schema-raster/satellite/).
 

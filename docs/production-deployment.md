@@ -47,10 +47,10 @@ server {
   ssl_certificate /etc/letsencrypt/live/api.example.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/api.example.com/privkey.pem;
 
-  location / { proxy_pass http://location-api:3000; proxy_set_header Host $host;
+  location / { proxy_pass http://location-api:5000; proxy_set_header Host $host;
     proxy_set_header X-Forwarded-Proto https; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; }
   location /ws/v1/locations {
-    proxy_pass http://location-api:3000/ws/v1/locations;
+    proxy_pass http://location-api:5000/ws/v1/locations;
     proxy_http_version 1.1; proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade"; proxy_read_timeout 3600s;
   }

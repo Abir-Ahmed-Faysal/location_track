@@ -16,17 +16,29 @@ import { MetricsService } from '../metrics/metrics.service';
 type SubscriptionMessage = { deviceId?: string };
 type AuthSocket = Socket;
 
-const trustedOrigins = (
-  process.env.FRONTEND_URLS ?? process.env.FRONTEND_URL ?? ''
-)
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+function isTrustedOrigin(origin: string | undefined): boolean {
+  if (!origin) return true;
+
+  const trustedOrigins = (
+    process.env.FRONTEND_URLS ?? process.env.FRONTEND_URL ?? ''
+  )
+    .split(',')
+    .map((trustedOrigin) => trustedOrigin.trim())
+    .filter(Boolean);
+
+  return trustedOrigins.includes(origin);
+}
 
 /** Authenticated, owner-scoped realtime subscription gateway. */
 @WebSocketGateway({
   namespace: '/ws/v1/locations',
-  cors: { origin: trustedOrigins, credentials: true },
+  cors: {
+    origin: (origin, callback) =>
+      isTrustedOrigin(origin)
+        ? callback(null, true)
+        : callback(new Error('Origin is not allowed by CORS')),
+    credentials: true,
+  },
 })
 @Injectable()
 export class RealtimeGateway {

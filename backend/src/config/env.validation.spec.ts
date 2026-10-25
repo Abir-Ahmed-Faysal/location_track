@@ -3,7 +3,7 @@ import { validate } from './env.validation';
 const base = {
   DATABASE_URL:
     'postgresql://app-user:strong-password@db.internal:5432/locationtrack?sslmode=require',
-  PORT: '3000',
+  PORT: '5000',
   NODE_ENV: 'production',
   ACCESS_TOKEN_SECRET: 'aB3!cD4@eF5#gH6$jK7%lM8^nP9&qR0*sT1+uV2=wX3?',
   REFRESH_TOKEN_SECRET: 'zY8!xW7@vU6#tS5$rQ4%pN3^mL2&kJ1*jH0+gF9=dE8?',

@@ -158,6 +158,15 @@ fun LocationDemoScreen(viewModel: MainViewModel) {
                             )
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Button(
+                        onClick = { viewModel.saveAndApplyConfiguration(context) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Save & Apply Settings")
+                    }
                 }
             }
 

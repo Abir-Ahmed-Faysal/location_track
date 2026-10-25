@@ -5,7 +5,7 @@
 | Variable | Required | Description |
 |---|---:|---|
 | `DATABASE_URL` | yes | PostgreSQL connection string; Docker API uses `postgres:5432` internally |
-| `PORT` | yes | HTTP port, normally `3000` |
+| `PORT` | yes | HTTP port, normally `5000` |
 | `NODE_ENV` | yes | `development`, `test`, or `production` |
 | `ACCESS_TOKEN_SECRET` | yes | JWT access-token secret, minimum 32 characters |
 | `REFRESH_TOKEN_SECRET` | yes | JWT refresh-token secret, minimum 32 characters |

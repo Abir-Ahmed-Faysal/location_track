@@ -15,7 +15,7 @@ docker compose -f backend/docker-compose.yml up --build -d
 docker compose -f backend/docker-compose.yml ps
 ```
 
-The API is available at `http://localhost:3000`; PostGIS is exposed on host port
+The API is available at `http://localhost:5000`; PostGIS is exposed on host port
 `5433`. The API container runs `prisma migrate deploy` before starting. This
 Compose file is for local use; production must inject an external TLS
 `DATABASE_URL` and must not use the example database credentials.
@@ -34,8 +34,8 @@ come from the injected environment.
 ## Health and logs
 
 ```bash
-curl http://localhost:3000/api/v1/health/live
-curl http://localhost:3000/api/v1/health/ready
+curl http://localhost:5000/api/v1/health/live
+curl http://localhost:5000/api/v1/health/ready
 docker compose -f backend/docker-compose.yml logs -f api
 ```
 

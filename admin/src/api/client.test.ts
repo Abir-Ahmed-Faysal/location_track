@@ -8,7 +8,7 @@ describe('API client', () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
     vi.stubGlobal('fetch', fetchMock);
     await expect(request<{ ok: boolean }>('/admin/overview')).resolves.toEqual({ ok: true });
-    expect(fetchMock).toHaveBeenCalledWith('http://localhost:3000/api/v1/admin/overview', expect.objectContaining({ credentials: 'include' }));
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:5000/api/v1/admin/overview', expect.objectContaining({ credentials: 'include' }));
   });
 
   it('preserves the backend status and error envelope for authorization failures', async () => {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Map as MapLibreMap, Marker, NavigationControl, type Map as MapInstance } from 'maplibre-gl';
+import { LngLatBounds, Map as MapLibreMap, Marker, NavigationControl, type Map as MapInstance } from 'maplibre-gl';
 import { io, type Socket } from 'socket.io-client';
 import { Link, useSearchParams } from 'react-router-dom';
 import { adminApi } from '../api/admin';
@@ -12,10 +12,11 @@ import { devicesWithValidLocations } from '../lib/map-data';
 
 type StyleKey = 'streets' | 'satellite' | 'hybrid';
 const mapKey = import.meta.env.VITE_MAPTILER_KEY?.trim();
+const hasMapKey = Boolean(mapKey && !mapKey.startsWith('NfWE2J1SMhdFGhDU0NQ8'));
 const styles: Record<StyleKey, string> = {
   streets: 'https://tiles.openfreemap.org/styles/liberty',
-  satellite: `https://api.maptiler.com/maps/satellite-v4/style.json?key=${mapKey}`,
-  hybrid: `https://api.maptiler.com/maps/hybrid/style.json?key=${mapKey}`,
+  satellite: hasMapKey ? `https://api.maptiler.com/maps/satellite-v4/style.json?key=${mapKey}` : '',
+  hybrid: hasMapKey ? `https://api.maptiler.com/maps/hybrid/style.json?key=${mapKey}` : '',
 };
 
 export function MapPage() {
@@ -76,7 +77,7 @@ export function MapPage() {
     <PageHeading eyebrow="LIVE FLEET" title="Location map" description="Most recently saved fixes for devices on the current authorized fleet page." action={<span className={`connection-state connection-${connection}`}><i />{connection === 'live' ? 'Live updates on' : connection === 'offline' ? 'Using 30s refresh' : 'Connecting'}</span>} />
     {devices.isError ? <ErrorPanel error={devices.error} onRetry={() => void devices.refetch()} /> : <div className="map-layout">
       <section className="map-panel">
-        <div className="map-toolbar"><div className="map-count"><span className="live-dot" /> <strong>{visible.length}</strong> devices with valid coordinates <span className="map-total">of {devices.data?.total ?? '—'}</span><div className="map-pager"><button aria-label="Previous map page" disabled={page <= 1} onClick={() => { setPage((value) => Math.max(value - 1, 1)); setSelectedId(''); }}>‹</button><span>{devices.data?.page ?? page}/{Math.max(devices.data?.totalPages ?? 1, 1)}</span><button aria-label="Next map page" disabled={page >= (devices.data?.totalPages ?? 1)} onClick={() => { setPage((value) => Math.min(value + 1, devices.data?.totalPages ?? value)); setSelectedId(''); }}>›</button></div></div><div className="map-styles" aria-label="Map style">{(['streets', 'satellite', 'hybrid'] as const).map((value) => <button key={value} className={style === value ? 'selected' : ''} onClick={() => setStyle(value)} disabled={value !== 'streets' && !mapKey} title={value !== 'streets' && !mapKey ? 'Add a restricted public MapTiler key to enable imagery' : undefined}>{value[0].toUpperCase() + value.slice(1)}</button>)}</div></div>
+        <div className="map-toolbar"><div className="map-count"><span className="live-dot" /> <strong>{visible.length}</strong> devices with valid coordinates <span className="map-total">of {devices.data?.total ?? '—'}</span><div className="map-pager"><button aria-label="Previous map page" disabled={page <= 1} onClick={() => { setPage((value) => Math.max(value - 1, 1)); setSelectedId(''); }}>‹</button><span>{devices.data?.page ?? page}/{Math.max(devices.data?.totalPages ?? 1, 1)}</span><button aria-label="Next map page" disabled={page >= (devices.data?.totalPages ?? 1)} onClick={() => { setPage((value) => Math.min(value + 1, devices.data?.totalPages ?? value)); setSelectedId(''); }}>›</button></div></div><div className="map-styles" aria-label="Map style">{(['streets', 'satellite', 'hybrid'] as const).map((value) => <button key={value} className={style === value ? 'selected' : ''} onClick={() => setStyle(value)} disabled={value !== 'streets' && !hasMapKey} title={value !== 'streets' && !hasMapKey ? 'A real MapTiler key is required for satellite and hybrid imagery. Set VITE_MAPTILER_KEY in admin/.env.local.' : undefined}>{value[0].toUpperCase() + value.slice(1)}</button>)}</div></div>
         <MapCanvas devices={visible} selected={selected} styleUrl={styles[style]} onSelect={setSelectedId} />
         <div className="map-legend"><span><i className="legend-dot legend-fresh" />Fresh</span><span><i className="legend-dot legend-delayed" />Delayed</span><span><i className="legend-dot legend-stale" />Stale</span><small>Map data refreshes every 30 seconds. Tiles © OpenStreetMap contributors · OpenFreeMap</small></div>
       </section>
@@ -93,6 +94,7 @@ function MapCanvas({ devices, selected, styleUrl, onSelect }: { devices: AdminDe
   const map = useRef<MapInstance | null>(null);
   const currentStyle = useRef(styleUrl);
   const markers = useRef<Marker[]>([]);
+  const fittedFleet = useRef(false);
   const [ready, setReady] = useState(false);
   useEffect(() => {
     if (!container.current) return;
@@ -126,8 +128,24 @@ function MapCanvas({ devices, selected, styleUrl, onSelect }: { devices: AdminDe
   }, [ready, devices, selected?.id, onSelect]);
   useEffect(() => {
     if (!ready || !selected?.latestLocation || !map.current) return;
-    map.current.easeTo({ center: [selected.latestLocation.longitude, selected.latestLocation.latitude], zoom: Math.max(map.current.getZoom(), 13), duration: 700 });
+    map.current.easeTo({ center: [selected.latestLocation.longitude, selected.latestLocation.latitude], zoom: 16, duration: 700 });
   }, [ready, selected]);
+  useEffect(() => {
+    if (!ready || selected || fittedFleet.current || !map.current || devices.length === 0) return;
+    const points = devices.flatMap((device) => {
+      const location = device.latestLocation;
+      return location && hasValidCoordinates(location.latitude, location.longitude)
+        ? [[location.longitude, location.latitude] as [number, number]]
+        : [];
+    });
+    if (points.length === 1) {
+      map.current.easeTo({ center: points[0], zoom: 16, duration: 500 });
+    } else if (points.length > 1) {
+      const bounds = points.slice(1).reduce((value, point) => value.extend(point), new LngLatBounds(points[0], points[0]));
+      map.current.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 500 });
+    }
+    fittedFleet.current = points.length > 0;
+  }, [ready, devices, selected]);
   return <div className="map-canvas-wrap"><div ref={container} className="map-canvas" aria-label="Map of device locations" />{!ready && <div className="map-loading-overlay"><span className="spinner" />Loading map tiles…</div>}</div>;
 }
 

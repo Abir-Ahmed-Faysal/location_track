@@ -26,11 +26,12 @@ services:
     env_file:
       - .env
     environment:
-      PORT: 3000
+      PORT: 5000
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/locationtrack
       NODE_ENV: ${NODE_ENV:-development}
       PROMETHEUS_ENABLED: ${PROMETHEUS_ENABLED:-false}
     ports:
-      - "3000:3000"
+      - "5000:5000"
     depends_on:
       postgres:
         condition: service_healthy

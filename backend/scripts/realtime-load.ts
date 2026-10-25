@@ -1,13 +1,13 @@
 import { io, Socket } from 'socket.io-client';
 import crypto from 'node:crypto';
 
-const url = process.env.LOAD_TEST_URL ?? 'http://localhost:3000/ws/v1/locations';
+const url = process.env.LOAD_TEST_URL ?? 'http://localhost:5000/ws/v1/locations';
 const connections = Number(process.env.LOAD_TEST_CONNECTIONS ?? 1000);
 const messageRate = Number(process.env.LOAD_TEST_MESSAGE_RATE ?? 1);
 const durationSeconds = Number(process.env.LOAD_TEST_DURATION_SECONDS ?? 30);
 const token = process.env.LOAD_TEST_TOKEN;
 const deviceIds = (process.env.LOAD_TEST_DEVICE_IDS ?? '').split(',').filter(Boolean);
-const ingestUrl = process.env.LOAD_TEST_INGEST_URL ?? 'http://localhost:3000/api/v1/locations/batch';
+const ingestUrl = process.env.LOAD_TEST_INGEST_URL ?? 'http://localhost:5000/api/v1/locations/batch';
 
 if (!token) {
   throw new Error('LOAD_TEST_TOKEN is required');
