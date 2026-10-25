@@ -1,39 +1,44 @@
-﻿# Admin dashboard API and authorization gap audit
+# Admin API and authorization implementation record
 
-Date: 2026-10-25
+Updated: 2026-10-25
 
-## Verified existing contracts
+## Previous gaps and implementation
 
-| Capability | Existing route/protocol | Current behavior |
+The original audit found owner-scoped device and location reads, no database role, no fleet list/overview endpoints, and owner-only realtime subscriptions. The user approved the database-backed admin role and the minimum backend work required to build an all-user dashboard.
+
+The working tree now contains the following backend changes:
+
+- `UserRole` enum with `USER` default and a migration adding `User.role`.
+- `AdminGuard` queries the current database role on protected admin requests.
+- Read-only `/api/v1/admin/overview`, device list/detail, and bounded cursor/date-filtered history endpoints.
+- The authenticated profile response includes the current role for account display; authorization does not rely on that client response.
+- Optional startup bootstrap reads `ADMIN_EMAIL` and `ADMIN_PASSWORD`, atomically creates a hashed `ADMIN` user if that exact email is absent, and skips an existing email without changing its current role.
+- Realtime `subscribe` checks the current role and active device record. An admin can subscribe only to a specific device ID after it has been returned from the authorized fleet list.
+- HTTP cookie authentication is supported for the Socket.IO handshake with the configured trusted frontend origins.
+- An admin API e2e test covers ordinary-user denial, admin fleet reads, owner summary, persisted latest speed, history date filters, and unauthenticated denial.
+
+## Current contracts
+
+| Capability | Contract | Behavior |
 |---|---|---|
-| Sign in | `POST /api/v1/auth/login` | Normal user email/password login; sets HttpOnly access/refresh cookies and returns auth result |
-| Current user | `GET /api/v1/auth/profile` | Authenticated profile only; does not expose an authorization role |
-| Device read | `GET /api/v1/devices/:id` | Authenticated and owner-scoped; there is no device collection/list route |
-| Latest location | `GET /api/v1/locations/latest?deviceId=...` | Authenticated and owner-scoped; one device at a time |
-| Location history | `GET /api/v1/locations/history?deviceId=...&limit=...&cursor=...` | Authenticated and owner-scoped; bounded cursor pagination, no date-range filters |
-| App metrics | `GET /api/v1/metrics` | Authenticated in-process ingestion counters and latency only; no fleet/device overview |
-| Realtime | Socket.IO namespace `/ws/v1/locations` | Handshake `auth.token`; `subscribe` with `{ deviceId }`; `location.updated` event; subscription is owner-scoped to one device |
+| Sign in | `POST /api/v1/auth/login` | Existing email/password; sets HttpOnly cookies and returns the user's basic profile |
+| Current profile | `GET /api/v1/auth/profile` | Authenticated profile, now includes database role |
+| Admin overview | `GET /api/v1/admin/overview` | Counts persisted devices, devices with a saved location, location events, five-minute heartbeat count, and newest saved update time |
+| Device table | `GET /api/v1/admin/devices?page=&limit=&search=&status=` | Admin-only, server-side search and bounded offset page (limit ≤ 100); includes owner summary and latest saved fix |
+| Device detail | `GET /api/v1/admin/devices/:deviceId` | Admin-only device summary and latest saved fix |
+| Device history | `GET /api/v1/admin/devices/:deviceId/locations/history?limit=&cursor=&from=&to=` | Admin-only, bounded cursor page (limit ≤ 200), optional capture-time range |
+| Realtime | Socket.IO `/ws/v1/locations` | Cookie or token-authenticated; `subscribe({deviceId})`; emits `location.updated`; server checks role and active device |
 
-The Prisma `User` model has no role field. The current backend does not provide an administrator authorization boundary or API to enumerate all authorized users' devices. The regular user endpoints cannot securely power the requested all-user admin dashboard.
+The HTTP API prefix is `/api/v1`. Standard users receive 403 from admin routes, and unauthenticated requests receive 401. Existing owner-scoped device and location routes remain in place.
 
-## Admin model selected
+## Verification state
 
-The requested target is a database-backed admin role. Provisioning should be controlled outside public signup (for example, a reviewed migration/operations command assigning the role to a designated account). Public signup must never grant admin access. The frontend will treat role information as a display aid; every protected API and realtime subscription must enforce the role on the server.
+- Frontend production TypeScript/Vite build: **PASS**.
+- Frontend unit tests: **PASS**; 8 tests for cookie request behavior, authorization error handling, valid map coordinates, and movement evidence.
+- Prisma client generation, schema validation, and backend build: **PASS**.
+- Backend unit tests: **PASS**, 15 suites and 120 tests, including admin seeding behavior and realtime admin/owner subscription authorization.
+- Admin API e2e test: **pending** because no PostgreSQL database was available; the working tree contains no realtime e2e test at this time.
+- Applying the role migration to a deployment database: **pending**.
+- Admin account provisioning: documented in [README.md](README.md); after migration and normal signup, promote only the selected account using a controlled database session. Public signup never assigns `ADMIN`.
 
-## Minimum backend work required before real dashboard data integration
-
-1. Add a database-backed role/permission field and migration with a safe default of ordinary user. Add an `AdminGuard` (or equivalent) that verifies the signed-in account's current database role rather than trusting a client claim.
-2. Add administrator-only, read-only APIs:
-   - `GET /api/v1/admin/overview` for counts only where the data supports them, with documented freshness threshold.
-   - `GET /api/v1/admin/devices` with bounded pagination and server-side search; return only approved device and owner summary fields plus latest-location data when present.
-   - `GET /api/v1/admin/devices/:deviceId` for authorized device details.
-   - `GET /api/v1/admin/devices/:deviceId/locations/history` with bounded cursor pagination and optional `from`/`to` filters.
-3. Extend the existing realtime authorization for administrators to subscribe only to enumerated active devices, preserving the existing `auth.token`, `subscribe` and `location.updated` protocol. If safe fleet subscriptions require a new message contract, document that contract before implementing it.
-4. Ensure unauthorized/ordinary users receive 403 (or the project's documented error envelope) for admin routes and cannot enumerate devices by guessing IDs. Keep current owner-scoped APIs unchanged.
-5. Add integration coverage for admin success, regular-user denial, cross-owner isolation, pagination/date filters, and realtime authorization.
-
-No backend implementation is included in this audit. This follows the dashboard task's instruction to request approval before changing backend authorization or contracts.
-
-## Frontend implementation boundary
-
-Until the backend work above is approved and available, the admin app can have its package scaffold and non-sensitive layout, but cannot truthfully provide protected fleet totals, all-device map/table data, admin login authorization, or fleet realtime updates. It must not call regular-user routes as an admin workaround, invent admin endpoints, or show fabricated data.
+Do not mark the admin dashboard fully production-ready until the pending backend checks pass and the migration is applied in the target environment. Physical device/map-tile verification and production origin/cookie settings also remain environment-specific.

@@ -27,11 +27,22 @@ export const envSchema = z
     FRONTEND_URL: z.string().url().optional(),
     FRONTEND_URLS: z.string().optional(),
 
+    ADMIN_EMAIL: z.string().trim().email().optional(),
+    ADMIN_PASSWORD: z.string().trim().min(8).max(72).optional(),
+
     RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(60),
 
     PROMETHEUS_ENABLED: z.enum(['true', 'false']).default('false'),
   })
   .superRefine((value, context) => {
+    if (Boolean(value.ADMIN_EMAIL) !== Boolean(value.ADMIN_PASSWORD)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['ADMIN_PASSWORD'],
+        message: 'ADMIN_EMAIL and ADMIN_PASSWORD must be configured together',
+      });
+    }
+
     const origins = (value.FRONTEND_URLS?.split(',') ?? [value.FRONTEND_URL])
       .map((origin) => origin?.trim())
       .filter((origin): origin is string => Boolean(origin));

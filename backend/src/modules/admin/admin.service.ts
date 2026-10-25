@@ -16,7 +16,7 @@ export class AdminService {
     const activeSince = new Date(now.getTime() - ACTIVE_WINDOW_SECONDS * 1000);
     const [totalDevices, activeDevices, devicesWithLocation, totalEvents, lastLocationUpdate] = await Promise.all([
       this.prisma.device.count(),
-      this.prisma.device.count({ where: { lastSeenAt: { gte: activeSince } } }),
+      this.prisma.device.count({ where: { status: 'ACTIVE', lastSeenAt: { gte: activeSince } } }),
       this.prisma.latestLocation.count(),
       this.prisma.locationEvent.count(),
       this.prisma.latestLocation.aggregate({ _max: { receivedAt: true } }),

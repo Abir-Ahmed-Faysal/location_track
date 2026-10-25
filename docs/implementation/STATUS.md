@@ -5,9 +5,19 @@
 
 ## Delivery Summary
 
+## Admin dashboard update (2026-10-25)
+
+- **Implementation:** The admin UI and its database-backed admin API are implemented in the working tree. The UI includes cookie-based sign-in, server-enforced admin access, fleet overview, searchable/paginated device table, MapLibre map with pagination and realtime refresh, device details, and bounded date-filtered history.
+- **Frontend verification:** `pnpm --dir admin build` passes. `pnpm --dir admin test` passes (3 suites, 9 tests).
+- **Backend verification:** Prisma client generation and schema validation pass; `pnpm --dir backend build` passes; backend unit tests pass (15 suites, 120 tests), including environment-driven admin seeding and realtime subscription authorization.
+- **Pending environment checks:** The admin API e2e test requires PostgreSQL. No database was listening on `127.0.0.1:5433`, and Docker Desktop was unavailable in this session, so the e2e test could not be run and the admin-role migration has not been applied to a database here.
+- **Production setup:** Set `FRONTEND_URLS`, configure `VITE_API_BASE_URL`, apply migrations, and provision an admin account using the steps in `admin/README.md` before deployment.
+
+---
+
 The planned core, backend, Android library, realtime/monitoring, and packaging
-work is implemented. Backend, Android library build/unit tests, and realtime
-integration coverage have verification evidence recorded below. Optional
+work is implemented. Backend and Android library build/unit tests, and realtime
+authorization unit coverage have verification evidence recorded below. Optional
 geofencing/retention modules remain out of scope. Physical-device validation,
 failure-injection, and the 1,000-device performance run have not been completed;
 their results are not claimed.
@@ -22,7 +32,7 @@ their results are not claimed.
 | 1 | Core Contracts | âœ… COMPLETE | 2026-10-25 | 2026-10-25 |
 | 2 | Backend Ingestion & Persistence | âœ… COMPLETE | 2026-10-25 | 2026-10-25 |
 | 3 | Android SDK | âœ… LIBRARY BUILD AND UNIT TESTS PASS; DEVICE VALIDATION PENDING | 2026-10-25 | 2026-10-25 |
-| 4 | Realtime & Operations | ðŸŸ¡ IMPLEMENTED; INTEGRATION COVERED; SCALE TEST PENDING | 2026-10-25 | â€” |
+| 4 | Realtime & Operations | IMPLEMENTED; AUTHORIZATION UNIT TESTED; END-TO-END AND SCALE TESTS PENDING | 2026-10-25 | — |
 | 5 | Packaging & Adoption | âœ… COMPLETE | 2026-10-25 | 2026-10-25 |
 | 6 | Optional Modules | â­ï¸ DEFERRED (OPTIONAL SCOPE) | â€” | â€” |
 
@@ -30,8 +40,9 @@ their results are not claimed.
 
 - Prometheus registry and optional `/metrics` endpoint implemented; Docker
   `monitoring` profile includes Prometheus, Grafana dashboard, and alerts.
-- Socket.IO integration test covers authentication, owner-scoped subscription,
-  delivery, duplicate ingestion, reconnect, and backend restart authorization.
+- Realtime gateway unit tests cover administrator cross-owner authorization,
+  owner access, and ordinary-user cross-owner denial. End-to-end socket delivery,
+  reconnect, and restart behavior have not been verified in the current working tree.
 - Configurable load runner added at `backend/scripts/realtime-load.ts`; no 1,000-device
   run has been executed yet, so loss/latency/resource results remain unmeasured.
 - Android Room queue and WorkManager source wiring added. The Android library
@@ -243,7 +254,7 @@ _(To be filled during implementation)_
 
 ### Exit Gate Checklist
 
-- [x] WebSocket authentication, owner-scoped subscription, delivery, duplicate ingestion, reconnect, and restart authorization covered by integration test
+- [ ] Realtime admin/owner subscription decisions have unit coverage; end-to-end delivery, duplicate ingestion, reconnect, and restart authorization still need integration coverage
 - [ ] Slow-client non-blocking behavior verified
 - [x] Reconnect contract documented: fetch latest, then resume stream
 - [x] Prometheus counters/histograms and optional scrape endpoint implemented; no queue-depth gauge is claimed

@@ -32,4 +32,14 @@ describe('production environment validation', () => {
       }),
     ).toThrow();
   });
+
+  it('requires a valid email and a password of at least eight characters together for admin bootstrap', () => {
+    expect(() => validate({ ...base, ADMIN_EMAIL: 'admin@example.com' })).toThrow();
+    expect(() => validate({ ...base, ADMIN_PASSWORD: 'short' })).toThrow();
+    expect(validate({
+      ...base,
+      ADMIN_EMAIL: ' admin@example.com ',
+      ADMIN_PASSWORD: '  Ae100ae100@  ',
+    }).ADMIN_EMAIL).toBe('admin@example.com');
+  });
 });

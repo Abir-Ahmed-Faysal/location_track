@@ -13,6 +13,8 @@
 | `REFRESH_TOKEN_EXPIRES_IN` | yes | Refresh-token lifetime, e.g. `7d` |
 | `FRONTEND_URL` | no | Legacy single CORS origin; use `FRONTEND_URLS` for production |
 | `FRONTEND_URLS` | production yes | Comma-separated exact trusted frontend origins; production requires HTTPS |
+| `ADMIN_EMAIL` | no | Optional initial admin account email; requires `ADMIN_PASSWORD`; if this email already exists, startup leaves it unchanged |
+| `ADMIN_PASSWORD` | no | Optional initial admin password (8–72 characters); hashed before insert and never logged |
 | `RATE_LIMIT_PER_MINUTE` | no | Per-IP and per-device in-memory request limit; defaults to `60` |
 | `PROMETHEUS_ENABLED` | no | Expose `/metrics` for Prometheus scraping; defaults to `false` |
 

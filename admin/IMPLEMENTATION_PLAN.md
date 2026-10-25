@@ -1,5 +1,9 @@
 # Admin dashboard implementation plan
 
+## Current implementation state
+
+The selected database-backed admin role and the required read-only API/realtime authorization changes were approved by the user and are implemented in the working tree. The frontend routes are implemented and the admin production build and frontend tests pass. The remaining release gate is a database-backed admin API e2e run and applying the migration in the target environment; see [API_GAP_AUDIT.md](API_GAP_AUDIT.md).
+
 ## Goal
 
 Build an administrator-facing web application that displays real device and location data from the existing Universal Location Engine. The dashboard is read-only for the initial release: no remote device controls, credential changes, or destructive operations.
