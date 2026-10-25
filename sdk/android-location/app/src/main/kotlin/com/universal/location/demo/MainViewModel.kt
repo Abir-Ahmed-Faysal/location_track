@@ -37,7 +37,7 @@ class MainViewModel : ViewModel() {
     private val KEY_DEVICE_ID = "device_id"
     private val KEY_AUTH_TOKEN = "auth_token"
 
-    val apiBaseUrl = MutableStateFlow("http://10.0.2.2:5000/api/v1")
+    val apiBaseUrl = MutableStateFlow("http://localhost:5000/api/v1")
     val deviceId = MutableStateFlow("device-android-001")
     val authToken = MutableStateFlow("")
     val trackingProfile = MutableStateFlow(TrackingProfile.BALANCED)
@@ -62,7 +62,7 @@ class MainViewModel : ViewModel() {
         val appContext = context.applicationContext
         val prefs: SharedPreferences = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-        val savedUrl = prefs.getString(KEY_API_URL, "http://10.0.2.2:5000/api/v1") ?: "http://10.0.2.2:5000/api/v1"
+        val savedUrl = prefs.getString(KEY_API_URL, "http://localhost:5000/api/v1") ?: "http://localhost:5000/api/v1"
         val savedDeviceId = prefs.getString(KEY_DEVICE_ID, "device-android-001") ?: "device-android-001"
         val savedToken = prefs.getString(KEY_AUTH_TOKEN, "") ?: ""
 
