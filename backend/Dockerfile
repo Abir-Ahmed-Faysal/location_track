@@ -14,6 +14,7 @@ COPY backend/tsconfig.json backend/tsconfig.build.json backend/nest-cli.json bac
 COPY backend/prisma.config.ts ./prisma.config.ts
 COPY backend/src ./src
 RUN pnpm build
+RUN find dist/generated/prisma -type f -name '*.js' -exec sed -i 's#\.ts#\.js#g' {} +
 
 FROM node:22-alpine AS runtime
 

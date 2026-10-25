@@ -7,8 +7,8 @@
 
 ## Local map and database audit (2026-10-25)
 
-- The map showed stale demo/test records: before cleanup the database had 34 users, 28 devices, 27 location events, and 26 latest-location rows; saved fixes ranged from 2026-10-24 21:39 UTC to 2026-10-25 01:00 UTC. These rows have been cleared. The API startup seed recreated the configured administrator; schema, migrations, and PostGIS reference data were preserved.
-- The map now fits the fleet once on initial load, zooms to a selected device, and uses MapLibre's package worker without Vite dependency-optimizer URLs. Satellite and hybrid controls require a real MapTiler browser key; the placeholder key was removed from the example and local env files.
+- The map showed stale demo/test records: before cleanup the database had 34 users, 28 devices, 27 location events, and 26 latest-location rows; saved fixes ranged from 2026-10-24 21:39 UTC to 2026-10-25 01:00 UTC. App rows were cleared. The API startup seed recreated the configured administrator; schema and migration history remain. PostGIS `spatial_ref_sys` reference rows were restored from the installed PostGIS package after a temporary clear; an SRID 4326-to-3857 transform was verified.
+- The map now fits the fleet once on initial load, zooms to a selected device, and uses MapLibre's package worker without Vite dependency-optimizer URLs. Vite now binds IPv6 localhost and deduplicates React packages; the HMR WebSocket handshake succeeds. Satellite and hybrid controls require a real MapTiler browser key; the placeholder key was removed from the example and local env files.
 - Fixed the production start script to use `dist/src/main.js`. Docker now builds from the backend's standalone lockfile, pins pnpm 10.33.4, and connects to the Compose PostgreSQL service. The Docker image build and startup succeeded.
 - Current local checks: admin production build passes; API health and Socket.IO CORS return 200. There are no device or location records after cleanup, so the dashboard will remain empty until an Android device sends a new GPS fix. A physical-device GPS run has not been performed.
 
@@ -17,7 +17,7 @@
 - **Implementation:** The admin UI and its database-backed admin API are implemented in the working tree. The UI includes cookie-based sign-in, server-enforced admin access, fleet overview, searchable/paginated device table, MapLibre map with pagination and realtime refresh, device details, and bounded date-filtered history.
 - **Frontend verification:** `pnpm --dir admin build` passes. `pnpm --dir admin test` passes (3 suites, 9 tests).
 - **Backend verification:** Prisma client generation and schema validation pass; `pnpm --dir backend build` passes; backend unit tests pass (15 suites, 120 tests), including environment-driven admin seeding and realtime subscription authorization.
-- **Pending environment checks:** The admin API e2e test requires PostgreSQL. No database was listening on `127.0.0.1:5433`, and Docker Desktop was unavailable in this session, so the e2e test could not be run and the admin-role migration has not been applied to a database here.
+- **Pending environment checks:** The admin API e2e test was not run in this audit. The local PostgreSQL database is running and the admin-role migration is applied; all app data was cleared during the database reset, then the configured administrator was re-seeded.
 - **Production setup:** Set `FRONTEND_URLS`, configure `VITE_API_BASE_URL`, apply migrations, and provision an admin account using the steps in `admin/README.md` before deployment.
 
 ---
