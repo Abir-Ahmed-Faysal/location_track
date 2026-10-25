@@ -1,0 +1,14 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/api/v1/:path*",
+      "destination": "https://ule-backend.onrender.com/api/v1/:path*"
+    },
+    {
+      "source": "/socket.io/:path*",
+      "destination": "https://ule-backend.onrender.com/socket.io/:path*"
+    },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

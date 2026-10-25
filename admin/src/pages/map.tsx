@@ -12,7 +12,7 @@ import { devicesWithValidLocations } from '../lib/map-data';
 
 type StyleKey = 'streets' | 'satellite' | 'hybrid';
 const mapKey = import.meta.env.VITE_MAPTILER_KEY?.trim();
-const hasMapKey = Boolean(mapKey && !mapKey.startsWith('NfWE2J1SMhdFGhDU0NQ8'));
+const hasMapKey = Boolean(mapKey);
 const styles: Record<StyleKey, string> = {
   streets: 'https://tiles.openfreemap.org/styles/liberty',
   satellite: hasMapKey ? `https://api.maptiler.com/maps/satellite-v4/style.json?key=${mapKey}` : '',
@@ -101,9 +101,23 @@ function MapCanvas({ devices, selected, styleUrl, onSelect }: { devices: AdminDe
     const instance = new MapLibreMap({ container: container.current, style: styleUrl, center: [90.4125, 23.8103], zoom: 4 });
     currentStyle.current = styleUrl;
     instance.addControl(new NavigationControl({ showCompass: true }), 'top-right');
-    instance.once('load', () => setReady(true));
+    const markReady = () => setReady(true);
+    if (instance.isStyleLoaded()) {
+      markReady();
+    } else {
+      instance.once('load', markReady);
+      instance.once('styledata', markReady);
+    }
+    const fallbackTimer = window.setTimeout(markReady, 300);
     map.current = instance;
-    return () => { markers.current.forEach((marker) => marker.remove()); markers.current = []; instance.remove(); map.current = null; setReady(false); };
+    return () => {
+      window.clearTimeout(fallbackTimer);
+      markers.current.forEach((marker) => marker.remove());
+      markers.current = [];
+      instance.remove();
+      map.current = null;
+      setReady(false);
+    };
   }, []);
   useEffect(() => {
     if (!map.current || currentStyle.current === styleUrl) return;
