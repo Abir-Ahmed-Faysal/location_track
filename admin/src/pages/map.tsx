@@ -14,9 +14,9 @@ type StyleKey = 'streets' | 'satellite' | 'hybrid';
 const mapKey = import.meta.env.VITE_MAPTILER_KEY?.trim();
 const hasMapKey = Boolean(mapKey);
 const styles: Record<StyleKey, string> = {
-  streets: 'https://tiles.openfreemap.org/styles/liberty',
-  satellite: hasMapKey ? `https://api.maptiler.com/maps/satellite-v4/style.json?key=${mapKey}` : '',
-  hybrid: hasMapKey ? `https://api.maptiler.com/maps/hybrid/style.json?key=${mapKey}` : '',
+  streets: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+  satellite: hasMapKey ? `https://api.maptiler.com/maps/satellite-v4/style.json?key=${mapKey}` : 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+  hybrid: hasMapKey ? `https://api.maptiler.com/maps/hybrid/style.json?key=${mapKey}` : 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
 };
 
 export function MapPage() {

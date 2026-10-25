@@ -6,6 +6,14 @@
       "destination": "https://ule-backend.onrender.com/api/v1/:path*"
     },
     {
+      "source": "/socket.io/",
+      "destination": "https://ule-backend.onrender.com/socket.io/"
+    },
+    {
+      "source": "/socket.io",
+      "destination": "https://ule-backend.onrender.com/socket.io/"
+    },
+    {
       "source": "/socket.io/:path*",
       "destination": "https://ule-backend.onrender.com/socket.io/:path*"
     },
