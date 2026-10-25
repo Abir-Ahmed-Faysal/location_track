@@ -5,13 +5,14 @@ export default defineConfig({
   fullyParallel: true,
   reporter: 'list',
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: 'http://127.0.0.1:5173',
     trace: 'on-first-retry',
-    screenshot: 'on',
+    screenshot: 'only-on-failure',
   },
   webServer: {
-    command: 'npx vite preview --port 5173 --host',
-    url: 'http://localhost:5173',
+    command: 'pnpm exec vite --host 127.0.0.1 --port 5173 --strictPort',
+    url: 'http://127.0.0.1:5173',
+    env: { VITE_API_BASE_URL: 'http://127.0.0.1:5173/api/v1' },
     reuseExistingServer: true,
     timeout: 30 * 1000,
   },

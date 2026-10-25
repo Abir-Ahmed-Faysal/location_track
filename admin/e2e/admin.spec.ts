@@ -1,64 +1,110 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
-test.describe('Admin Console Full End-to-End Test Suite', () => {
+const demoDevice = {
+  id: 'device-e2e-001',
+  platform: 'ANDROID',
+  status: 'ACTIVE',
+  createdAt: '2026-10-25T10:00:00.000Z',
+  lastSeenAt: '2026-10-25T10:05:00.000Z',
+  owner: { id: 'user-e2e-001', name: 'Demo User', email: 'demo@example.test' },
+  latestLocation: {
+    eventId: 'event-e2e-001',
+    latitude: 23.8103,
+    longitude: 90.4125,
+    accuracyM: 5,
+    capturedAt: '2026-10-25T10:05:00.000Z',
+    receivedAt: '2026-10-25T10:05:02.000Z',
+    altitudeM: null,
+    speedMps: 0,
+    bearingDeg: null,
+    freshnessStatus: 'FRESH',
+    accuracyClassification: 'GOOD',
+  },
+};
 
-  test('1. Authentication & Session Validation', async ({ page }) => {
-    await page.goto('/login');
-    await expect(page.locator('#email')).toBeVisible();
-    await expect(page.locator('#password')).toBeVisible();
+async function mockLocalServices(page: Page) {
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
 
-    await page.locator('#email').fill('fr.abir.ahmed.faysal@gmail.com');
-    await page.locator('#password').fill('Password123!');
-    await page.locator('button[type="submit"]').click();
+    if (pathname.endsWith('/auth/login') && request.method() === 'POST') {
+      return route.fulfill({ json: {
+        accessToken: 'playwright-access-token',
+        refreshToken: 'playwright-refresh-token',
+        user: { id: 'user-e2e-001', email: 'admin@example.test', name: 'Test Admin' },
+      } });
+    }
+    if (pathname.endsWith('/auth/logout-all')) {
+      return route.fulfill({ json: { message: 'Logged out' } });
+    }
+    if (pathname.endsWith('/admin/overview')) {
+      return route.fulfill({ json: {
+        totalDevices: 1,
+        activeDevices: 1,
+        devicesWithLocation: 1,
+        totalEvents: 1,
+        activeWindowSeconds: 300,
+        lastLocationUpdateAt: demoDevice.latestLocation.receivedAt,
+      } });
+    }
+    if (pathname.endsWith('/admin/devices')) {
+      const url = new URL(request.url());
+      return route.fulfill({ json: {
+        items: [demoDevice],
+        page: Number(url.searchParams.get('page') ?? 1),
+        limit: Number(url.searchParams.get('limit') ?? 25),
+        total: 1,
+        totalPages: 1,
+      } });
+    }
 
-    await page.waitForURL('**/admin**');
-    await page.screenshot({ path: 'e2e-01-overview.png', fullPage: true });
+    return route.fulfill({ status: 404, json: { error: { code: 'NOT_FOUND', message: 'Unmocked local test endpoint' } } });
   });
 
-  test('2. Command Center Overview Dashboard', async ({ page }) => {
-    await page.goto('/login');
-    await page.locator('#email').fill('fr.abir.ahmed.faysal@gmail.com');
-    await page.locator('#password').fill('Password123!');
-    await page.locator('button[type="submit"]').click();
-    await page.waitForURL('**/admin**');
+  // Keep E2E runs independent of external tile availability and map credentials.
+  await page.route('https://tiles.openfreemap.org/styles/liberty', (route) => route.fulfill({
+    contentType: 'application/json',
+    json: {
+      version: 8,
+      sources: {},
+      layers: [{ id: 'e2e-background', type: 'background', paint: { 'background-color': '#f4f1ed' } }],
+    },
+  }));
+  await page.route('**/socket.io/**', (route) => route.abort());
+}
 
-    await expect(page.getByText(/Registered devices/i)).toBeVisible();
-    await expect(page.getByText(/Recently active/i)).toBeVisible();
-    await expect(page.getByText(/Reporting locations/i)).toBeVisible();
-    await expect(page.getByText(/Recorded events/i)).toBeVisible();
+async function signIn(page: Page) {
+  await page.goto('/login');
+  await page.locator('#email').fill('admin@example.test');
+  await page.locator('#password').fill('local-playwright-password');
+  await page.locator('button[type="submit"]').click();
+  await expect(page).toHaveURL(/\/admin(?:$|\?)/);
+}
 
-    await page.screenshot({ path: 'e2e-02-overview-metrics.png', fullPage: true });
-  });
+test('signs in with a mocked local account and displays overview', async ({ page }) => {
+  await mockLocalServices(page);
+  await signIn(page);
 
-  test('3. Fleet Directory Devices List Page', async ({ page }) => {
-    await page.goto('/login');
-    await page.locator('#email').fill('fr.abir.ahmed.faysal@gmail.com');
-    await page.locator('#password').fill('Password123!');
-    await page.locator('button[type="submit"]').click();
+  await expect(page.getByRole('heading', { name: 'Command center' })).toBeVisible();
+  await expect(page.getByText('Registered devices', { exact: true })).toBeVisible();
+});
 
-    await page.goto('/admin/devices');
-    await expect(page.getByRole('heading', { name: 'Devices' })).toBeVisible();
+test('shows the mocked device in the directory', async ({ page }) => {
+  await mockLocalServices(page);
+  await signIn(page);
+  await page.goto('/admin/devices');
 
-    const searchInput = page.locator('input[placeholder*="Search"]');
-    await expect(searchInput).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Devices' })).toBeVisible();
+  await expect(page.locator('a.device-id')).toContainText('device-e2e-001');
+  await expect(page.getByText('demo@example.test')).toBeVisible();
+});
 
-    await page.screenshot({ path: 'e2e-03-devices-directory.png', fullPage: true });
-  });
+test('renders the live map canvas and device marker', async ({ page }) => {
+  await mockLocalServices(page);
+  await signIn(page);
+  await page.goto('/admin/map');
 
-  test('4. Live Fleet Location Map Page', async ({ page }) => {
-    await page.goto('/login');
-    await page.locator('#email').fill('fr.abir.ahmed.faysal@gmail.com');
-    await page.locator('#password').fill('Password123!');
-    await page.locator('button[type="submit"]').click();
-
-    await page.goto('/admin/map');
-    await expect(page.getByRole('heading', { name: 'Location map' })).toBeVisible();
-
-    const mapCanvas = page.locator('.map-canvas');
-    await expect(mapCanvas).toBeVisible();
-
-    await page.waitForTimeout(2000);
-    await page.screenshot({ path: 'e2e-04-live-map.png', fullPage: true });
-  });
-
+  await expect(page.getByRole('heading', { name: 'Location map' })).toBeVisible();
+  await expect(page.locator('.map-canvas')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Select device device-e2e-001' })).toBeVisible();
 });
