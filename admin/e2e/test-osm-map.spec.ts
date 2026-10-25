@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('CartoDB GL Map Rendering E2E Verification', async ({ page }) => {
+test('OpenStreetMap rendering E2E verification', async ({ page }) => {
   await page.goto('https://location-tracker-admin-lyart.vercel.app/login');
   await page.locator('#email').fill('fr.abir.ahmed.faysal@gmail.com');
   await page.locator('#password').fill('Ae100ae100@');
@@ -13,5 +13,5 @@ test('CartoDB GL Map Rendering E2E Verification', async ({ page }) => {
   const mapCanvas = page.locator('.map-canvas');
   await expect(mapCanvas).toBeVisible();
 
-  await page.screenshot({ path: 'carto-map-verification.png', fullPage: true });
+  await page.screenshot({ path: 'osm-map-verification.png', fullPage: true });
 });
