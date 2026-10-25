@@ -18,6 +18,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
+    if (response.headersSent) {
+      return;
+    }
+
     const status =
       exception instanceof HttpException
         ? exception.getStatus()
@@ -50,6 +54,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       exception instanceof Error ? exception.stack : String(exception),
     );
 
+    response.setHeader('X-Request-Id', requestId);
     response.status(status).json({
       error: {
         code:
@@ -69,6 +74,5 @@ export class AllExceptionsFilter implements ExceptionFilter {
         details,
       },
     });
-    response.setHeader('X-Request-Id', requestId);
   }
 }

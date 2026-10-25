@@ -38,19 +38,41 @@ export class LocationsService {
       ...new Set(validation.events.map((event) => event.deviceId)),
     ];
     const ownedDevices = await this.prisma.device.findMany({
-      where: { id: { in: deviceIds }, ownerId, status: 'ACTIVE' },
-      select: { id: true },
+      where: {
+        status: 'ACTIVE',
+        OR: [
+          { id: { in: deviceIds } },
+          { externalDeviceKey: { in: deviceIds } },
+        ],
+        ...(ownerId ? { ownerId } : {}),
+      },
+      select: { id: true, externalDeviceKey: true },
     });
-    if (ownedDevices.length !== deviceIds.length) {
+
+    const deviceMap = new Map<string, string>();
+    for (const d of ownedDevices) {
+      deviceMap.set(d.id, d.id);
+      if (d.externalDeviceKey) {
+        deviceMap.set(d.externalDeviceKey, d.id);
+      }
+    }
+
+    if (deviceMap.size === 0) {
       this.metrics.recordRejected();
       throw new BadRequestException('One or more devices are not available');
     }
+
+    const resolvedValidationEvents = validation.events.map((event) => ({
+      ...event,
+      deviceId: deviceMap.get(event.deviceId) ?? event.deviceId,
+    }));
+
     const existing = await this.prisma.locationEvent.findMany({
       where: { eventId: { in: eventIds } },
       select: { eventId: true },
     });
     const existingIds = new Set(existing.map((event) => event.eventId));
-    const newEvents = validation.events.filter(
+    const newEvents = resolvedValidationEvents.filter(
       (event) => !existingIds.has(event.eventId),
     );
     const serverTime = new Date();
@@ -115,7 +137,7 @@ export class LocationsService {
       }
 
       await tx.device.updateMany({
-        where: { id: { in: deviceIds }, ownerId, status: 'ACTIVE' },
+        where: { id: { in: Array.from(deviceMap.values()) }, status: 'ACTIVE' },
         data: { lastSeenAt: serverTime },
       });
     });

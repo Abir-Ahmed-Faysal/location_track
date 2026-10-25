@@ -9,7 +9,7 @@ import { APP_CONSTANTS } from './common/constants/app.constants';
 class TrustedOriginIoAdapter extends IoAdapter {
   constructor(
     app: INestApplication,
-    private readonly trustedOrigins: string[],
+    private readonly corsOrigin: boolean | string | string[],
   ) {
     super(app);
   }
@@ -22,7 +22,7 @@ class TrustedOriginIoAdapter extends IoAdapter {
       ...options,
       cors: {
         ...options?.cors,
-        origin: this.trustedOrigins,
+        origin: this.corsOrigin,
         credentials: true,
       },
     });
@@ -32,19 +32,25 @@ class TrustedOriginIoAdapter extends IoAdapter {
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  const trustedOrigins = (
+  const rawOrigins = (
     process.env.FRONTEND_URLS ??
     process.env.FRONTEND_URL ??
-    ''
+    '*'
   )
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
+
+  const corsOrigin =
+    rawOrigins.length === 0 || rawOrigins.includes('*')
+      ? true
+      : rawOrigins;
+
   app.enableCors({
-    origin: trustedOrigins,
+    origin: corsOrigin,
     credentials: true,
   });
-  app.useWebSocketAdapter(new TrustedOriginIoAdapter(app, trustedOrigins));
+  app.useWebSocketAdapter(new TrustedOriginIoAdapter(app, corsOrigin));
 
   app.useGlobalPipes(
     new ValidationPipe({

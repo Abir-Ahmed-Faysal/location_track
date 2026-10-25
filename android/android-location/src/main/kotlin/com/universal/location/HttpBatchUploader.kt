@@ -67,6 +67,7 @@ class HttpBatchUploader(
         val requestBuilder = Request.Builder()
             .url(requestUrl)
             .post(jsonPayload.toRequestBody(jsonMediaType))
+            .header("bypass-tunnel-reminder", "true")
 
         if (!authToken.isNullOrBlank()) {
             requestBuilder.header("Authorization", "Bearer $authToken")
