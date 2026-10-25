@@ -29,6 +29,11 @@ export function MapPage() {
   const queryClient = useQueryClient();
   const devices = useQuery({ queryKey: ['admin-map-devices', page], queryFn: ({ signal }) => adminApi.devices({ page, limit: 100 }, signal), refetchInterval: 30_000 });
   const visible = useMemo(() => devicesWithValidLocations(devices.data?.items ?? []), [devices.data]);
+  useEffect(() => {
+    if (!selectedId && visible.length > 0) {
+      setSelectedId(visible[0].id);
+    }
+  }, [visible, selectedId]);
   const filtered = visible.filter((device) => `${device.id} ${device.owner?.email ?? ''} ${device.owner?.name ?? ''}`.toLowerCase().includes(search.toLowerCase()));
   const selected = visible.find((device) => device.id === selectedId) ?? null;
   const activeIds = useMemo(() => (devices.data?.items ?? []).filter((item) => item.status === 'ACTIVE').map((item) => item.id), [devices.data]);
