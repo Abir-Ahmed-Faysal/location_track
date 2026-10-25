@@ -186,10 +186,24 @@ function MapCanvas({ devices, selected, styleUrl, onSelect }: { devices: AdminDe
   const [ready, setReady] = useState(false);
   useEffect(() => {
     if (!container.current) return;
-    const instance = new MapLibreMap({ container: container.current, style: styleUrl, center: [90.4125, 23.8103], zoom: 4 });
+    const initialCenter: [number, number] = selected?.latestLocation
+      ? [selected.latestLocation.longitude, selected.latestLocation.latitude]
+      : devices.length > 0 && devices[0].latestLocation
+        ? [devices[0].latestLocation.longitude, devices[0].latestLocation.latitude]
+        : [90.4125, 23.8103];
+    const initialZoom = selected?.latestLocation || (devices.length > 0 && devices[0].latestLocation) ? 14 : 6;
+    const instance = new MapLibreMap({
+      container: container.current,
+      style: styleUrl,
+      center: initialCenter,
+      zoom: initialZoom,
+    });
     currentStyle.current = styleUrl;
     instance.addControl(new NavigationControl({ showCompass: true }), 'top-right');
-    const markReady = () => setReady(true);
+    const markReady = () => {
+      instance.resize();
+      setReady(true);
+    };
     if (instance.isStyleLoaded()) {
       markReady();
     } else {
@@ -197,9 +211,11 @@ function MapCanvas({ devices, selected, styleUrl, onSelect }: { devices: AdminDe
       instance.once('styledata', markReady);
     }
     const fallbackTimer = window.setTimeout(markReady, 200);
+    const resizeTimer = window.setTimeout(() => instance.resize(), 500);
     map.current = instance;
     return () => {
       window.clearTimeout(fallbackTimer);
+      window.clearTimeout(resizeTimer);
       markers.current.forEach((marker) => marker.remove());
       markers.current = [];
       instance.remove();
