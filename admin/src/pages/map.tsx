@@ -12,67 +12,18 @@ import { devicesWithValidLocations } from '../lib/map-data';
 
 type StyleKey = 'streets' | 'satellite' | 'hybrid';
 
-const cartoVoyagerRasterStyle: StyleSpecification = {
-  version: 8,
-  sources: {
-    'carto-voyager': {
-      type: 'raster',
-      tiles: [
-        'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-        'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-        'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-        'https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-      ],
-      tileSize: 256,
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
-    },
-  },
-  layers: [
-    {
-      id: 'carto-voyager-layer',
-      type: 'raster',
-      source: 'carto-voyager',
-      minzoom: 0,
-      maxzoom: 19,
-    },
-  ],
-};
-
-const cartoDarkRasterStyle: StyleSpecification = {
-  version: 8,
-  sources: {
-    'carto-dark': {
-      type: 'raster',
-      tiles: [
-        'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-        'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-        'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-        'https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-      ],
-      tileSize: 256,
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
-    },
-  },
-  layers: [
-    {
-      id: 'carto-dark-layer',
-      type: 'raster',
-      source: 'carto-dark',
-      minzoom: 0,
-      maxzoom: 19,
-    },
-  ],
-};
-
 const osmStandardRasterStyle: StyleSpecification = {
   version: 8,
   sources: {
     'osm-tiles': {
       type: 'raster',
       tiles: [
-        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
       ],
       tileSize: 256,
+      maxzoom: 19,
       attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     },
   },
@@ -90,8 +41,8 @@ const osmStandardRasterStyle: StyleSpecification = {
 const mapKey = import.meta.env.VITE_MAPTILER_KEY?.trim();
 const hasMapKey = Boolean(mapKey);
 const styles: Record<StyleKey, StyleSpecification | string> = {
-  streets: cartoVoyagerRasterStyle,
-  satellite: hasMapKey ? `https://api.maptiler.com/maps/satellite-v4/style.json?key=${mapKey}` : cartoDarkRasterStyle,
+  streets: osmStandardRasterStyle,
+  satellite: hasMapKey ? `https://api.maptiler.com/maps/satellite-v4/style.json?key=${mapKey}` : osmStandardRasterStyle,
   hybrid: hasMapKey ? `https://api.maptiler.com/maps/hybrid/style.json?key=${mapKey}` : osmStandardRasterStyle,
 };
 
@@ -160,7 +111,7 @@ export function MapPage() {
       <section className="map-panel">
         <div className="map-toolbar"><div className="map-count"><span className="live-dot" /> <strong>{visible.length}</strong> devices with valid coordinates <span className="map-total">of {devices.data?.total ?? '—'}</span><div className="map-pager"><button aria-label="Previous map page" disabled={page <= 1} onClick={() => { setPage((value) => Math.max(value - 1, 1)); setSelectedId(''); }}>‹</button><span>{devices.data?.page ?? page}/{Math.max(devices.data?.totalPages ?? 1, 1)}</span><button aria-label="Next map page" disabled={page >= (devices.data?.totalPages ?? 1)} onClick={() => { setPage((value) => Math.min(value + 1, devices.data?.totalPages ?? value)); setSelectedId(''); }}>›</button></div></div><div className="map-styles" aria-label="Map style">{(['streets', 'satellite', 'hybrid'] as const).map((value) => <button key={value} className={style === value ? 'selected' : ''} onClick={() => setStyle(value)} disabled={value !== 'streets' && !hasMapKey} title={value !== 'streets' && !hasMapKey ? 'A real MapTiler key is required for satellite and hybrid imagery. Set VITE_MAPTILER_KEY in admin/.env.local.' : undefined}>{value[0].toUpperCase() + value.slice(1)}</button>)}</div></div>
         <MapCanvas devices={visible} selected={selected} styleUrl={styles[style]} onSelect={setSelectedId} />
-        <div className="map-legend"><span><i className="legend-dot legend-fresh" />Fresh</span><span><i className="legend-dot legend-delayed" />Delayed</span><span><i className="legend-dot legend-stale" />Stale</span><small>Map data refreshes every 30 seconds. Tiles © OpenStreetMap contributors · CARTO</small></div>
+        <div className="map-legend"><span><i className="legend-dot legend-fresh" />Fresh</span><span><i className="legend-dot legend-delayed" />Delayed</span><span><i className="legend-dot legend-stale" />Stale</span><small>Map data refreshes every 30 seconds. Tiles © OpenStreetMap contributors</small></div>
       </section>
       <aside className="map-sidebar panel"><div className="map-side-head"><div><div className="section-eyebrow">FLEET LOCATIONS</div><h3>Devices <span>{filtered.length}</span></h3></div></div><label className="search-field map-search"><span>⌕</span><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search devices…" aria-label="Search map devices" /></label>
         <div className="map-device-list">{devices.isPending ? <div className="map-loading">Loading device locations…</div> : filtered.length ? filtered.map((device) => <button key={device.id} className={`map-device-row${selectedId === device.id ? ' active' : ''}`} onClick={() => setSelectedId(device.id)}><span className={`map-device-pin pin-${device.latestLocation?.freshnessStatus.toLowerCase()}`}><i /></span><span className="map-device-info"><strong>{device.owner?.name || device.owner?.email || 'Unassigned device'}</strong><small>{shortId(device.id)} · {device.platform}</small><small>{formatRelative(device.latestLocation?.capturedAt)}</small></span><span className="map-row-arrow">↗</span></button>) : <EmptyState title="No mapped devices">Devices without valid saved coordinates won’t appear.</EmptyState>}</div>
@@ -210,8 +161,8 @@ function MapCanvas({ devices, selected, styleUrl, onSelect }: { devices: AdminDe
       instance.once('load', markReady);
       instance.once('styledata', markReady);
     }
-    const fallbackTimer = window.setTimeout(markReady, 200);
-    const resizeTimer = window.setTimeout(() => instance.resize(), 500);
+    const fallbackTimer = window.setTimeout(markReady, 150);
+    const resizeTimer = window.setTimeout(() => instance.resize(), 400);
     map.current = instance;
     return () => {
       window.clearTimeout(fallbackTimer);
