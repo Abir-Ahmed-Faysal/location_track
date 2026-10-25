@@ -1,0 +1,124 @@
+openapi: 3.0.3
+info:
+  title: Universal Location Engine API
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000/api/v1
+paths:
+  /health/live:
+    get:
+      summary: Liveness probe
+      responses:
+        '200': { description: Process is alive }
+  /health/ready:
+    get:
+      summary: Database readiness probe
+      responses:
+        '200': { description: Database is ready }
+  /devices/register:
+    post:
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterDevice' }
+      responses:
+        '201': { description: Device registered }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /devices/{id}:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/DeviceId' }]
+      responses:
+        '200': { description: Device details }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /locations/batch:
+    post:
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IngestBatch' }
+      responses:
+        '201': { description: Batch classification }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /locations/latest:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/DeviceIdQuery' }]
+      responses:
+        '200': { description: Latest location }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /locations/history:
+    get:
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/DeviceIdQuery' }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: cursor
+          in: query
+          schema: { type: string }
+      responses:
+        '200': { description: Cursor-paginated history }
+  /metrics:
+    get:
+      summary: Authenticated in-memory operational metrics
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Ingestion counters and latency summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  eventsAcceptedTotal: { type: integer }
+                  eventsDuplicateTotal: { type: integer }
+                  batchesRejectedTotal: { type: integer }
+                  ingestionLatencyMsLast: { type: integer }
+                  ingestionLatencyMsAverage: { type: integer }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    DeviceId: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    DeviceIdQuery: { name: deviceId, in: query, required: true, schema: { type: string, format: uuid } }
+  schemas:
+    RegisterDevice:
+      type: object
+      required: [externalDeviceKey, platform]
+      properties:
+        externalDeviceKey: { type: string }
+        platform: { type: string, enum: [ANDROID, IOS, WEB, OTHER] }
+    IngestBatch:
+      type: object
+      required: [schemaVersion, events]
+      properties:
+        schemaVersion: { type: integer, enum: [1] }
+        events:
+          type: array
+          maxItems: 5
+          items: { $ref: '#/components/schemas/LocationEvent' }
+    LocationEvent:
+      type: object
+      required: [eventId, deviceId, capturedAt, latitude, longitude]
+      properties:
+        eventId: { type: string, format: uuid }
+        deviceId: { type: string, format: uuid }
+        capturedAt: { type: string, format: date-time }
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+        accuracyM: { type: number, minimum: 0 }
+        altitudeM: { type: number }
+        speedMps: { type: number, minimum: 0 }
+        bearingDeg: { type: number, minimum: 0, exclusiveMaximum: 360 }
+  responses:
+    Unauthorized: { description: Authentication required }
+    NotFound: { description: Resource not found }
+    ValidationError: { description: Validation failed }
+    RateLimited: { description: Rate limit exceeded, headers: { Retry-After: { schema: { type: integer } } } }

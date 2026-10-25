@@ -1,0 +1,9 @@
+{
+  "title": "Universal Location Engine",
+  "schemaVersion": 39,
+  "panels": [
+    {"type":"timeseries","title":"HTTP p95 latency (ms)","targets":[{"expr":"histogram_quantile(0.95, sum(rate(ule_http_request_latency_ms_bucket[5m])) by (le))"}],"gridPos":{"h":8,"w":12,"x":0,"y":0}},
+    {"type":"timeseries","title":"Ingestion accepted / duplicate", "targets":[{"expr":"rate(ule_ingestion_events_accepted_total[5m])"},{"expr":"rate(ule_ingestion_events_duplicate_total[5m])"}],"gridPos":{"h":8,"w":12,"x":12,"y":0}},
+    {"type":"timeseries","title":"WebSocket connections", "targets":[{"expr":"rate(ule_websocket_connections_total[5m])"}],"gridPos":{"h":8,"w":12,"x":0,"y":8}}
+  ]
+}

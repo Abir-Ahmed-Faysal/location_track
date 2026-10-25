@@ -1,0 +1,61 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: location-tracker-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: locationtrack
+    ports:
+      - "5433:5432"
+    volumes:
+      - location_tracker_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d locationtrack"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    container_name: location-tracker-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORT: 3000
+      NODE_ENV: ${NODE_ENV:-development}
+      PROMETHEUS_ENABLED: ${PROMETHEUS_ENABLED:-false}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    profiles: [monitoring]
+    volumes:
+      - ./ops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./ops/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - api
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    profiles: [monitoring]
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./ops/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./ops/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+
+volumes:
+  location_tracker_postgres:

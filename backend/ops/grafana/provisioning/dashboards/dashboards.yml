@@ -1,0 +1,6 @@
+apiVersion: 1
+providers:
+  - name: Universal Location Engine
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

@@ -1,0 +1,11 @@
+﻿node_modules
+dist
+coverage
+.git
+.gitignore
+.env
+backend/.env*
+backend/dist
+backend/generated/prisma
+android/**/build
+*.log

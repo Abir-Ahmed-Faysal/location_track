@@ -1,3 +1,7 @@
+packages:
+  - backend
+  - admin
+
 allowBuilds:
   '@prisma/engines': false
   bcrypt: false

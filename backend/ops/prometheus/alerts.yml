@@ -1,0 +1,18 @@
+groups:
+  - name: universal-location-engine
+    rules:
+      - alert: LocationApiDown
+        expr: up{job="universal-location-api"} == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations: { summary: "Location API metrics endpoint is unavailable" }
+      - alert: LocationIngestionErrors
+        expr: increase(ule_ingestion_batches_rejected_total[5m]) > 10
+        for: 5m
+        labels: { severity: warning }
+        annotations: { summary: "Location ingestion rejections are elevated" }
+      - alert: LocationHttpLatencyHigh
+        expr: histogram_quantile(0.95, sum(rate(ule_http_request_latency_ms_bucket[5m])) by (le)) > 1000
+        for: 10m
+        labels: { severity: warning }
+        annotations: { summary: "HTTP p95 latency exceeds one second" }

@@ -1,4 +1,4 @@
-# Universal Location Engine — Agent Implementation Rules
+# Universal Location Engine â€” Agent Implementation Rules
 
 > **MANDATORY READING.** The AI agent must read and follow these rules before writing any code.
 > Violations of these rules are implementation defects.
@@ -12,7 +12,7 @@
 - Report test outcomes as `PASS`, `FAIL`, `NOT RUN`, or `BLOCKED`
 - Never claim a test passed unless it was actually executed and its output recorded
 - Never claim performance numbers without a documented benchmark run
-- If something was not tested, say "Not measured" — never "Estimated" or "Approximately"
+- If something was not tested, say "Not measured" â€” never "Estimated" or "Approximately"
 
 ### 1.2 One phase at a time
 
@@ -24,7 +24,7 @@
 
 - Do not delete or destructively modify files without explicit approval
 - Do not reset the database or drop tables without verifying the environment first
-- Do not assume previous implementation plans were executed — inspect the actual code
+- Do not assume previous implementation plans were executed â€” inspect the actual code
 - Preserve all existing comments and docstrings unrelated to your changes
 
 ### 1.4 Read before writing
@@ -40,32 +40,32 @@
 
 ### 2.1 Core domain independence
 
-The `src/core/` directory must contain **zero** NestJS imports, **zero** Prisma imports, and **zero** HTTP/transport-specific code. It defines:
+The `backend/src/core/` directory must contain **zero** NestJS imports, **zero** Prisma imports, and **zero** HTTP/transport-specific code. It defines:
 - Domain types and value objects
 - Port interfaces (abstract contracts)
 - Validation logic
 - Error types
 - Business rules
 
-Everything in `src/core/` must be testable with plain unit tests and no infrastructure.
+Everything in `backend/src/core/` must be testable with plain unit tests and no infrastructure.
 
 ### 2.2 Adapter pattern for replaceable concerns
 
 The following must be implemented as replaceable adapters behind port interfaces:
-- **Authentication/identity** — `AuthAdapter` port
-- **Device identity** — `DeviceIdentityAdapter` port
-- **Event storage** — `EventStore` port
-- **Latest-location storage** — `LatestLocationStore` port
-- **Realtime publishing** — `RealtimePublisher` port
-- **Clock/time** — `Clock` port
+- **Authentication/identity** â€” `AuthAdapter` port
+- **Device identity** â€” `DeviceIdentityAdapter` port
+- **Event storage** â€” `EventStore` port
+- **Latest-location storage** â€” `LatestLocationStore` port
+- **Realtime publishing** â€” `RealtimePublisher` port
+- **Clock/time** â€” `Clock` port
 
-NestJS modules in `src/modules/` implement these ports. The core domain never imports from `src/modules/`.
+NestJS modules in `backend/src/modules/` implement these ports. The core domain never imports from `backend/src/modules/`.
 
 ### 2.3 No mandatory SaaS features
 
 - Multi-tenancy is NOT required. Use a replaceable context/namespace adapter if data isolation is needed
 - No billing, subscription, or CRM features
-- No mandatory admin UI — the engine must work without one
+- No mandatory admin UI â€” the engine must work without one
 - Self-hostable is the primary deployment model
 
 ### 2.4 No unnecessary abstractions
@@ -84,7 +84,7 @@ NestJS modules in `src/modules/` implement these ports. The core domain never im
 - Enable PostGIS extension in migration: `CREATE EXTENSION IF NOT EXISTS postgis;`
 - Use `geography(Point,4326)` for spatial columns (metre-based distance calculations)
 - Geography columns use Prisma `Unsupported("geography(Point,4326)")` + raw SQL in migrations
-- All raw SQL must be parameterized — no string interpolation of user input
+- All raw SQL must be parameterized â€” no string interpolation of user input
 - GiST index on geography columns
 
 ### 3.2 Prisma usage
@@ -106,7 +106,7 @@ NestJS modules in `src/modules/` implement these ports. The core domain never im
 
 - Every query that returns integration/project-specific data must be scoped by the ownership context
 - Test that querying with a wrong context returns empty results (not a 403)
-- Use 404 for inaccessible resources — never reveal whether they exist in another context
+- Use 404 for inaccessible resources â€” never reveal whether they exist in another context
 
 ---
 
@@ -148,12 +148,12 @@ Error codes are UPPER_SNAKE_CASE constants. Never include:
 ### 4.4 Idempotency
 
 - `event_id` is the idempotency key for location events
-- Duplicate detection: if `event_id` already exists, return it in `duplicates[]` — never insert a second row
+- Duplicate detection: if `event_id` already exists, return it in `duplicates[]` â€” never insert a second row
 - Committed retry of an already-accepted batch returns the same classification
 
 ### 4.5 Batch semantics
 
-- Default: atomic batch — if ANY event is invalid, reject the ENTIRE batch
+- Default: atomic batch â€” if ANY event is invalid, reject the ENTIRE batch
 - Return structured per-event details for rejected batches
 - Never acknowledge acceptance before database commit
 - Separate server receipt time from device capture time
@@ -170,7 +170,7 @@ Error codes are UPPER_SNAKE_CASE constants. Never include:
 
 - Configurable limits per device and per IP
 - `429 Too Many Requests` with `Retry-After` header
-- Never silently drop requests — always return a response
+- Never silently drop requests â€” always return a response
 
 ---
 
@@ -180,7 +180,7 @@ Error codes are UPPER_SNAKE_CASE constants. Never include:
 
 - Never commit secrets to source control
 - Use `.env` files for local development (in `.gitignore`)
-- Provide `.env.example` with safe placeholder values
+- Provide `backend/.env.example` with safe placeholder values
 - Use `ConfigModule` for all configuration access
 
 ### 5.2 Logging
@@ -193,7 +193,7 @@ Error codes are UPPER_SNAKE_CASE constants. Never include:
 ### 5.3 Authentication
 
 - Every endpoint (except health probes) requires authentication
-- Auth is a replaceable adapter — the core engine does not depend on a specific auth implementation
+- Auth is a replaceable adapter â€” the core engine does not depend on a specific auth implementation
 - The current JWT/email-password auth module becomes one adapter implementation
 - Device auth is a separate credential type
 
@@ -211,8 +211,8 @@ Error codes are UPPER_SNAKE_CASE constants. Never include:
 ### 6.1 Test structure
 
 - Unit tests: `*.spec.ts` co-located with source files
-- Integration tests: `test/` directory, use `*.e2e-spec.ts`
-- Test naming: `describe('ClassName/FunctionName')` → `it('should ...')`
+- Integration tests: `backend/test/` directory, use `*.e2e-spec.ts`
+- Test naming: `describe('ClassName/FunctionName')` â†’ `it('should ...')`
 
 ### 6.2 What must be tested
 
@@ -228,7 +228,7 @@ Error codes are UPPER_SNAKE_CASE constants. Never include:
 - Authentication required (401 without token)
 - Invalid input rejected with proper error format
 - Duplicate ingest returns duplicates, not errors
-- Cross-context isolation (wrong context → 404)
+- Cross-context isolation (wrong context â†’ 404)
 - Concurrent requests (no race conditions)
 - Rate limiting (429 with Retry-After)
 
@@ -258,7 +258,7 @@ pnpm build         # Type check + compile
 - Never log access tokens or precise coordinates
 - Never silently drop unacknowledged events
 - Never claim background tracking works on all devices
-- Never claim exactly-once delivery — it's at-least-once with idempotent effects
+- Never claim exactly-once delivery â€” it's at-least-once with idempotent effects
 
 ### 7.2 Always
 
@@ -283,7 +283,7 @@ pnpm build         # Type check + compile
 
 After completing any phase:
 1. Update `docs/implementation/STATUS.md` with:
-   - Phase status changed to ✅ COMPLETE
+   - Phase status changed to âœ… COMPLETE
    - All exit gate items checked with evidence
    - Test results with exact commands and output
    - Files created/modified listed
@@ -320,20 +320,20 @@ For any significant deviation from the plan:
 
 | Parameter | Default Value | Configurable |
 |---|---|---|
-| Freshness: Fresh | ≤ 15 seconds | Yes |
-| Freshness: Delayed | 15–60 seconds | Yes |
+| Freshness: Fresh | â‰¤ 15 seconds | Yes |
+| Freshness: Delayed | 15â€“60 seconds | Yes |
 | Freshness: Stale | > 60 seconds | Yes |
-| Accuracy: Good | ≤ 25 metres | Yes |
-| Accuracy: Reduced | 25–50 metres | Yes |
+| Accuracy: Good | â‰¤ 25 metres | Yes |
+| Accuracy: Reduced | 25â€“50 metres | Yes |
 | Accuracy: Poor | > 50 metres | Yes |
 | Profile: Active | 5s interval, 5m distance | Yes |
 | Profile: Balanced | 10s interval, 10m distance | Yes |
-| Profile: Stationary | 30–60s interval, 15–25m distance | Yes |
+| Profile: Stationary | 30â€“60s interval, 15â€“25m distance | Yes |
 | Upload flush interval | ~5 seconds | Yes |
 | Upload batch size | up to 5 events | Yes |
 | Retry policy | Exponential backoff + jitter, bounded max delay | Yes |
 | Pagination default limit | 50 | Yes |
 | Pagination max limit | 200 | Yes |
-| Scale target | ~1,000 concurrent devices | — |
-| Ingestion p95 target | < 500ms | — |
-| Fan-out p95 target | < 1 second | — |
+| Scale target | ~1,000 concurrent devices | â€” |
+| Ingestion p95 target | < 500ms | â€” |
+| Fan-out p95 target | < 1 second | â€” |
