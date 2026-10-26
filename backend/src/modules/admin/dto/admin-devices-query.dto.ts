@@ -32,7 +32,7 @@ export class AdminDevicesQueryDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['ACTIVE', 'INACTIVE'])
+  @IsIn(['PENDING', 'ACTIVE', 'INACTIVE'])
   status?: string;
 }
 
