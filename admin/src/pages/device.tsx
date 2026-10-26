@@ -23,7 +23,7 @@ export function DevicePage() {
       <section className="panel location-panel"><div className="section-eyebrow">LATEST LOCATION</div>{location ? <>
         <div className="location-coordinates"><span>⌖</span><div><strong>{location.latitude.toFixed(6)}<small>°</small></strong><strong>{location.longitude.toFixed(6)}<small>°</small></strong></div></div>
         <div className="location-tags"><span className={`freshness-text freshness-${location.freshnessStatus.toLowerCase()}`}><i />{location.freshnessStatus}</span><span className="accuracy-tag">Accuracy {location.accuracyM == null ? 'unavailable' : `±${location.accuracyM} m`}</span></div>
-        <div className="detail-rows compact"><DetailRow label="Captured on device" value={formatDate(location.capturedAt)} /><DetailRow label="Received by server" value={formatDate(location.receivedAt)} /><DetailRow label="Speed" value={location.speedMps == null ? 'Not reported' : `${(location.speedMps * 3.6).toFixed(1)} km/h`} /></div>
+        <div className="detail-rows compact"><DetailRow label="Captured on device" value={formatDate(location.capturedAt)} /><DetailRow label="Received by server" value={formatDate(location.receivedAt)} /><DetailRow label="Speed" value={location.speedMps == null ? 'Not reported' : `${(location.speedMps * 3.6).toFixed(1)} km/h${location.speedSource === 'estimated' ? ' (estimated)' : ''}`} /></div>
         <Link className="inline-link" to={`/admin/map?device=${encodeURIComponent(value.id)}`}>Locate on map <span>→</span></Link>
       </> : <div className="no-location"><span>⌖</span><strong>No location data</strong><p>This device has not reported a saved location yet.</p></div>}</section>
     </div>

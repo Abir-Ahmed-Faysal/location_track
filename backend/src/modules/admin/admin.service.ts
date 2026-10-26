@@ -3,6 +3,7 @@ import { classifyAccuracy } from '../../core/domain/accuracy';
 import { classifyFreshness } from '../../core/domain/freshness';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AdminDevicesQueryDto, AdminHistoryQueryDto } from './dto/admin-devices-query.dto';
+import { estimateSpeedMps } from './speed-estimate';
 
 const ACTIVE_WINDOW_SECONDS = 5 * 60;
 
@@ -88,9 +89,9 @@ export class AdminService {
             },
           },
           events: {
-            take: 1,
+            take: 2,
             orderBy: [{ capturedAt: 'desc' }, { id: 'desc' }],
-            select: { altitudeM: true, speedMps: true, bearingDeg: true },
+            select: { altitudeM: true, speedMps: true, bearingDeg: true, latitude: true, longitude: true, accuracyM: true, capturedAt: true },
           },
         },
       }),
@@ -127,9 +128,9 @@ export class AdminService {
           },
         },
         events: {
-          take: 1,
+          take: 2,
           orderBy: [{ capturedAt: 'desc' }, { id: 'desc' }],
-          select: { altitudeM: true, speedMps: true, bearingDeg: true },
+          select: { altitudeM: true, speedMps: true, bearingDeg: true, latitude: true, longitude: true, accuracyM: true, capturedAt: true },
         },
       },
     });
@@ -234,10 +235,18 @@ export class AdminService {
       capturedAt: Date;
       receivedAt: Date;
     } | null;
-    events: { altitudeM: number | null; speedMps: number | null; bearingDeg: number | null }[];
+    events: { altitudeM: number | null; speedMps: number | null; bearingDeg: number | null; latitude: number; longitude: number; accuracyM: number | null; capturedAt: Date }[];
   }>(device: T) {
     const latest = device.latestLocation;
     const recentEvent = device.events[0];
+    const estimatedSpeed = latest && device.events[1]
+      ? estimateSpeedMps(
+          { latitude: latest.latitude, longitude: latest.longitude, accuracyM: latest.accuracyM, capturedAt: latest.capturedAt },
+          { latitude: device.events[1].latitude, longitude: device.events[1].longitude, accuracyM: device.events[1].accuracyM, capturedAt: device.events[1].capturedAt },
+        )
+      : null;
+    const speedMps = recentEvent?.speedMps ?? estimatedSpeed;
+    const speedSource = recentEvent?.speedMps != null ? 'reported' : estimatedSpeed != null ? 'estimated' : null;
     const freshnessStatus = latest ? classifyFreshness(latest.capturedAt) : null;
     return {
       id: device.id,
@@ -252,7 +261,8 @@ export class AdminService {
             altitudeM: recentEvent?.altitudeM ?? null,
             // Speed belongs to the capture instant; do not present old motion
             // as the device's current speed after the fix becomes stale.
-            speedMps: freshnessStatus === 'FRESH' ? recentEvent?.speedMps ?? null : null,
+            speedMps: freshnessStatus === 'FRESH' || freshnessStatus === 'DELAYED' ? speedMps : null,
+            speedSource: freshnessStatus === 'FRESH' || freshnessStatus === 'DELAYED' ? speedSource : null,
             bearingDeg: recentEvent?.bearingDeg ?? null,
             freshnessStatus,
             accuracyClassification: classifyAccuracy(latest.accuracyM),

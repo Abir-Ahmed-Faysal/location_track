@@ -7,6 +7,7 @@ export interface OwnerSummary { id: string; name: string | null; email: string }
 export interface LatestLocation {
   eventId: string; latitude: number; longitude: number; accuracyM: number | null;
   capturedAt: string; receivedAt: string; altitudeM: number | null; speedMps: number | null;
+  speedSource?: 'reported' | 'estimated' | null;
   bearingDeg: number | null; freshnessStatus: 'FRESH' | 'DELAYED' | 'STALE' | 'UNKNOWN';
   accuracyClassification: 'GOOD' | 'REDUCED' | 'POOR' | 'UNAVAILABLE';
 }
