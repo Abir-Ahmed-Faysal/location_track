@@ -238,6 +238,7 @@ export class AdminService {
   }>(device: T) {
     const latest = device.latestLocation;
     const recentEvent = device.events[0];
+    const freshnessStatus = latest ? classifyFreshness(latest.capturedAt) : null;
     return {
       id: device.id,
       platform: device.platform,
@@ -249,9 +250,11 @@ export class AdminService {
         ? {
             ...latest,
             altitudeM: recentEvent?.altitudeM ?? null,
-            speedMps: recentEvent?.speedMps ?? null,
+            // Speed belongs to the capture instant; do not present old motion
+            // as the device's current speed after the fix becomes stale.
+            speedMps: freshnessStatus === 'FRESH' ? recentEvent?.speedMps ?? null : null,
             bearingDeg: recentEvent?.bearingDeg ?? null,
-            freshnessStatus: classifyFreshness(latest.capturedAt),
+            freshnessStatus,
             accuracyClassification: classifyAccuracy(latest.accuracyM),
           }
         : null,

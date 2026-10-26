@@ -173,7 +173,10 @@ class MainViewModel : ViewModel() {
         serviceLocationJob?.cancel()
         serviceLocationJob = viewModelScope.launch {
             LocationTrackingService.latestLocation.collect { event ->
-                if (event != null) _lastCapturedEvent.value = event
+                if (event != null) {
+                    _lastCapturedEvent.value = event
+                    refreshDiagnostics()
+                }
             }
         }
         val prefs: SharedPreferences = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

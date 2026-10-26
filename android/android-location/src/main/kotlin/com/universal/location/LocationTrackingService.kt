@@ -28,6 +28,7 @@ class LocationTrackingService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
     private var captureJob: Job? = null
     private var heartbeatJob: Job? = null
+    private var connectivityJob: Job? = null
     @Volatile private var lastLocationCapturedAt = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -58,6 +59,19 @@ class LocationTrackingService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        LocationSyncWorker.enqueue(applicationContext)
+
+        connectivityJob?.cancel()
+        connectivityJob = engine.connectivityMonitor?.state?.let { state ->
+            serviceScope.launch {
+                state.collect { connectivity ->
+                    if (connectivity == ConnectivityState.ONLINE) {
+                        LocationSyncWorker.enqueue(applicationContext)
+                    }
+                }
+            }
+        }
+
         captureJob?.cancel()
         captureJob = serviceScope.launch {
             while (isActive) {
@@ -87,6 +101,7 @@ class LocationTrackingService : Service() {
                             // Keep the tracking service alive; the next interval retries the heartbeat.
                         }
                     }
+                    LocationSyncWorker.enqueue(applicationContext)
                     delay(HEARTBEAT_INTERVAL_MS)
                 }
             }
@@ -98,6 +113,7 @@ class LocationTrackingService : Service() {
     override fun onDestroy() {
         captureJob?.cancel()
         heartbeatJob?.cancel()
+        connectivityJob?.cancel()
         super.onDestroy()
         serviceScope.cancel()
         _isServiceRunning.value = false
