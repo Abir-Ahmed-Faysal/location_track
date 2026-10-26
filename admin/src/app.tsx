@@ -9,6 +9,7 @@ import { OverviewPage } from './pages/overview';
 import { DevicesPage } from './pages/devices';
 import { DevicePage } from './pages/device';
 import { HistoryPage } from './pages/history';
+import { ApprovalsPage } from './pages/approvals';
 
 const MapPage = lazy(() => import('./pages/map').then((module) => ({ default: module.MapPage })));
 
@@ -21,6 +22,7 @@ export function App() {
         <Route index element={<OverviewPage />} />
         <Route path="map" element={<MapPage />} />
         <Route path="devices" element={<DevicesPage />} />
+        <Route path="approvals" element={<ApprovalsPage />} />
         <Route path="devices/:deviceId" element={<DevicePage />} />
         <Route path="devices/:deviceId/history" element={<HistoryPage />} />
       </Route>

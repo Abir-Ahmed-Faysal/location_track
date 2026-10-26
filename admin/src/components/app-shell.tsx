@@ -6,6 +6,7 @@ const links = [
   { to: '/admin', label: 'Overview', icon: '◫', end: true },
   { to: '/admin/map', label: 'Live map', icon: '⌖' },
   { to: '/admin/devices', label: 'Devices', icon: '▤' },
+  { to: '/admin/approvals', label: 'Approvals', icon: '✓' },
 ];
 
 export function AppShell() {
