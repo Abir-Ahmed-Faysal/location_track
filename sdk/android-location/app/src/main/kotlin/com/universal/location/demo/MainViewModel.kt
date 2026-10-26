@@ -21,6 +21,7 @@ import com.universal.location.SyncCoordinator
 import com.universal.location.SyncWorkerDependencies
 import com.universal.location.TrackingProfile
 import com.universal.location.UniversalLocationEngine
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -36,8 +37,9 @@ class MainViewModel : ViewModel() {
     private val KEY_API_URL = "api_base_url"
     private val KEY_DEVICE_ID = "device_id"
     private val KEY_AUTH_TOKEN = "auth_token"
+    private val DEFAULT_PROD_URL = "https://ule-backend.onrender.com/api/v1"
 
-    val apiBaseUrl = MutableStateFlow("http://localhost:5000/api/v1")
+    val apiBaseUrl = MutableStateFlow(DEFAULT_PROD_URL)
     val deviceId = MutableStateFlow("device-android-001")
     val authToken = MutableStateFlow("")
     val trackingProfile = MutableStateFlow(TrackingProfile.BALANCED)
@@ -62,7 +64,7 @@ class MainViewModel : ViewModel() {
         val appContext = context.applicationContext
         val prefs: SharedPreferences = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-        val savedUrl = prefs.getString(KEY_API_URL, "http://localhost:5000/api/v1") ?: "http://localhost:5000/api/v1"
+        val savedUrl = prefs.getString(KEY_API_URL, DEFAULT_PROD_URL) ?: DEFAULT_PROD_URL
         val savedDeviceId = prefs.getString(KEY_DEVICE_ID, "device-android-001") ?: "device-android-001"
         val savedToken = prefs.getString(KEY_AUTH_TOKEN, "") ?: ""
 
@@ -92,9 +94,18 @@ class MainViewModel : ViewModel() {
         val permissions = AndroidPermissionManager(appContext)
         val connectivity = AndroidConnectivityMonitor(appContext)
 
+        val previousConnectivity = _connectivityState.value
         _connectivityState.value = connectivity.state.value
+
         viewModelScope.launch {
-            connectivity.state.collect { _connectivityState.value = it }
+            connectivity.state.collect { newState ->
+                val oldState = _connectivityState.value
+                _connectivityState.value = newState
+                if (newState == ConnectivityState.ONLINE && oldState == ConnectivityState.OFFLINE) {
+                    triggerManualSync(appContext)
+                    refreshDiagnostics()
+                }
+            }
         }
 
         val roomQueue = RoomEventQueue.create(appContext)
@@ -161,7 +172,7 @@ class MainViewModel : ViewModel() {
     }
 
     fun refreshDiagnostics() {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO) {
             _diagnostics.value = _engine.value?.diagnostics() ?: EngineDiagnostics(0, null, 0, 0)
         }
     }

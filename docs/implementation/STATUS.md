@@ -68,6 +68,17 @@ their results are not claimed.
 - Added HTTPS/WSS reverse-proxy guidance, TLS requirements, backup retention,
   access controls, restore verification, and deployment checklist.
 
+## Android runtime audit (2026-10-26)
+
+- Fixed uploader behavior so incomplete/malformed successful responses are retried
+  instead of acknowledging and deleting queued events.
+- Prevented duplicate location collectors when the foreground service restarts.
+- Removed the demo's fake backend URL, fake device ID, and optional-token startup;
+  configuration now requires HTTPS, a real backend device UUID, and an access token.
+- Disabled cleartext HTTP in the demo manifest.
+- Android build remains unverified because JDK, Gradle, wrapper, Android SDK, and
+  `adb` are not available in the current environment.
+
 ---
 
 ## Phase 0 â€” Audit & Safe Baseline

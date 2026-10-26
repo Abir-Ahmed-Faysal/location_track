@@ -250,7 +250,7 @@ fun LocationDemoScreen(viewModel: MainViewModel) {
                             Text("Sync Now")
                         }
                         OutlinedButton(
-                            onClick = { viewModel.requestFreshLocation() },
+                            onClick = { viewModel.requestFreshLocation(context) },
                             modifier = Modifier.weight(1f)
                         ) {
                             Text("Get Fresh Fix")

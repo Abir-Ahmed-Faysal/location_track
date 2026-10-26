@@ -81,7 +81,12 @@ class HttpBatchUploader(
                 val parsed = gson.fromJson(responseBodyString, BatchIngestResponseJson::class.java)
                 val acceptedUuids = parsed.accepted?.mapNotNull { parseUuidSafely(it) }?.toSet() ?: emptySet()
                 val duplicateUuids = parsed.duplicates?.mapNotNull { parseUuidSafely(it) }?.toSet() ?: emptySet()
-                UploadResult.Acknowledged(acceptedUuids, duplicateUuids)
+                val acknowledged = acceptedUuids + duplicateUuids
+                if (acknowledged.intersect(events.map { it.eventId }.toSet()).size != events.size) {
+                    UploadResult.RetryableFailure()
+                } else {
+                    UploadResult.Acknowledged(acceptedUuids, duplicateUuids)
+                }
             } else if (response.code == 429) {
                 val retryAfter = response.header("Retry-After")?.toLongOrNull()
                 UploadResult.RetryableFailure(retryAfterSeconds = retryAfter)
@@ -93,7 +98,7 @@ class HttpBatchUploader(
         } catch (e: IOException) {
             UploadResult.RetryableFailure()
         } catch (e: Exception) {
-            UploadResult.PermanentFailure(e.message ?: "Unknown upload exception")
+            UploadResult.RetryableFailure()
         }
     }
 

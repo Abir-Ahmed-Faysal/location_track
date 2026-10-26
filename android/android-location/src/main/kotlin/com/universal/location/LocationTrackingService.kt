@@ -18,11 +18,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 
 class LocationTrackingService : Service() {
 
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
+    private var captureJob: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -44,8 +46,9 @@ class LocationTrackingService : Service() {
         _isServiceRunning.value = true
 
         val engine = activeEngine
+        captureJob?.cancel()
         if (engine != null && engine.locationCapturer != null) {
-            serviceScope.launch {
+            captureJob = serviceScope.launch {
                 engine.locationCapturer.locations(engine.profile).collect { locationEvent ->
                     engine.recordEvent(locationEvent)
                     LocationSyncWorker.enqueue(applicationContext)
@@ -57,6 +60,7 @@ class LocationTrackingService : Service() {
     }
 
     override fun onDestroy() {
+        captureJob?.cancel()
         super.onDestroy()
         serviceScope.cancel()
         _isServiceRunning.value = false

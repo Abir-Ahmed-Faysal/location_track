@@ -15,6 +15,7 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -25,7 +26,7 @@ import kotlin.coroutines.resume
 
 /**
  * Fused location provider adapter supporting GMS FusedLocationProviderClient with
- * fallback to Android system LocationManager for non-GMS devices.
+ * robust single-update fallback to Android system LocationManager for EMUI / non-GMS devices.
  */
 class FusedLocationCapturer(
     private val context: Context,
@@ -94,26 +95,51 @@ class FusedLocationCapturer(
 
     @SuppressLint("MissingPermission")
     override suspend fun requestFreshLocation(): LocationEvent? {
-        if (isGooglePlayServicesAvailable()) {
-            return suspendCancellableCoroutine { continuation ->
-                fusedClient.lastLocation
-                    .addOnSuccessListener { location: Location? ->
-                        continuation.resume(location?.toLocationEvent(deviceId))
+        val location = suspendCancellableCoroutine<Location?> { continuation ->
+            if (isGooglePlayServicesAvailable()) {
+                val cts = CancellationTokenSource()
+                fusedClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token)
+                    .addOnSuccessListener { loc ->
+                        if (loc != null) {
+                            continuation.resume(loc)
+                        } else {
+                            fusedClient.lastLocation
+                                .addOnSuccessListener { lastLoc -> continuation.resume(lastLoc) }
+                                .addOnFailureListener { continuation.resume(null) }
+                        }
                     }
                     .addOnFailureListener {
-                        continuation.resume(null)
+                        fusedClient.lastLocation
+                            .addOnSuccessListener { lastLoc -> continuation.resume(lastLoc) }
+                            .addOnFailureListener { continuation.resume(null) }
                     }
+            } else {
+                val provider = when {
+                    locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
+                    locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> LocationManager.NETWORK_PROVIDER
+                    else -> null
+                }
+                if (provider == null) {
+                    continuation.resume(null)
+                } else {
+                    val lastLoc = locationManager.getLastKnownLocation(provider)
+                    if (lastLoc != null) {
+                        continuation.resume(lastLoc)
+                    } else {
+                        val listener = object : LocationListener {
+                            override fun onLocationChanged(l: Location) {
+                                locationManager.removeUpdates(this)
+                                continuation.resume(l)
+                            }
+                            @Deprecated("Deprecated in Java")
+                            override fun onStatusChanged(p: String?, s: Int, e: android.os.Bundle?) {}
+                        }
+                        locationManager.requestLocationUpdates(provider, 0L, 0f, listener, Looper.getMainLooper())
+                    }
+                }
             }
-        } else {
-            val provider = when {
-                locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
-                locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> LocationManager.NETWORK_PROVIDER
-                else -> null
-            } ?: return null
-
-            val lastLoc = locationManager.getLastKnownLocation(provider)
-            return lastLoc?.toLocationEvent(deviceId)
         }
+        return location?.toLocationEvent(deviceId)
     }
 
     private fun isGooglePlayServicesAvailable(): Boolean {

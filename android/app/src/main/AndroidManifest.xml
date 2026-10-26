@@ -13,7 +13,7 @@
         android:icon="@android:drawable/ic_menu_mylocation"
         android:label="Universal Location Demo"
         android:supportsRtl="true"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="false">
 
         <activity
             android:name=".MainActivity"

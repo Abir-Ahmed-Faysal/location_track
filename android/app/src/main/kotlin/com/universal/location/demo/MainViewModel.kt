@@ -21,12 +21,14 @@ import com.universal.location.SyncCoordinator
 import com.universal.location.SyncWorkerDependencies
 import com.universal.location.TrackingProfile
 import com.universal.location.UniversalLocationEngine
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.Instant
+import java.util.UUID
 
 enum class FreshnessBadge { FRESH, DELAYED, STALE }
 
@@ -36,9 +38,10 @@ class MainViewModel : ViewModel() {
     private val KEY_API_URL = "api_base_url"
     private val KEY_DEVICE_ID = "device_id"
     private val KEY_AUTH_TOKEN = "auth_token"
+    private val DEFAULT_PROD_URL = ""
 
-    val apiBaseUrl = MutableStateFlow("http://localhost:5000/api/v1")
-    val deviceId = MutableStateFlow("device-android-001")
+    val apiBaseUrl = MutableStateFlow(DEFAULT_PROD_URL)
+    val deviceId = MutableStateFlow("")
     val authToken = MutableStateFlow("")
     val trackingProfile = MutableStateFlow(TrackingProfile.BALANCED)
 
@@ -62,15 +65,15 @@ class MainViewModel : ViewModel() {
         val appContext = context.applicationContext
         val prefs: SharedPreferences = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-        val savedUrl = prefs.getString(KEY_API_URL, "http://localhost:5000/api/v1") ?: "http://localhost:5000/api/v1"
-        val savedDeviceId = prefs.getString(KEY_DEVICE_ID, "device-android-001") ?: "device-android-001"
+        val savedUrl = prefs.getString(KEY_API_URL, DEFAULT_PROD_URL) ?: DEFAULT_PROD_URL
+        val savedDeviceId = prefs.getString(KEY_DEVICE_ID, "") ?: ""
         val savedToken = prefs.getString(KEY_AUTH_TOKEN, "") ?: ""
 
         apiBaseUrl.value = savedUrl
         deviceId.value = savedDeviceId
         authToken.value = savedToken
 
-        applyEngineConfig(appContext)
+        if (hasValidConfiguration()) applyEngineConfig(appContext)
     }
 
     fun saveAndApplyConfiguration(context: Context) {
@@ -83,18 +86,32 @@ class MainViewModel : ViewModel() {
             .putString(KEY_AUTH_TOKEN, authToken.value.trim())
             .apply()
 
-        applyEngineConfig(appContext)
-        Toast.makeText(appContext, "Configuration Saved & Applied!", Toast.LENGTH_SHORT).show()
+        if (hasValidConfiguration()) {
+            applyEngineConfig(appContext)
+            Toast.makeText(appContext, "Configuration saved and applied", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(appContext, "Enter HTTPS API URL, device UUID, and access token", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun applyEngineConfig(appContext: Context) {
+        if (!hasValidConfiguration()) return
         val capturer = FusedLocationCapturer(appContext, deviceId.value)
         val permissions = AndroidPermissionManager(appContext)
         val connectivity = AndroidConnectivityMonitor(appContext)
 
+        val previousConnectivity = _connectivityState.value
         _connectivityState.value = connectivity.state.value
+
         viewModelScope.launch {
-            connectivity.state.collect { _connectivityState.value = it }
+            connectivity.state.collect { newState ->
+                val oldState = _connectivityState.value
+                _connectivityState.value = newState
+                if (newState == ConnectivityState.ONLINE && oldState == ConnectivityState.OFFLINE) {
+                    triggerManualSync(appContext)
+                    refreshDiagnostics()
+                }
+            }
         }
 
         val roomQueue = RoomEventQueue.create(appContext)
@@ -129,8 +146,21 @@ class MainViewModel : ViewModel() {
         refreshDiagnostics()
     }
 
+    private fun hasValidConfiguration(): Boolean =
+        apiBaseUrl.value.startsWith("https://") &&
+            runCatching { UUID.fromString(deviceId.value) }.isSuccess &&
+            authToken.value.isNotBlank()
+
     fun startTracking(context: Context) {
         val engine = _engine.value ?: return
+        val permissionManager = engine.permissionManager
+        if (permissionManager != null &&
+            !permissionManager.hasPermission(com.universal.location.LocationPermission.FINE) &&
+            !permissionManager.hasPermission(com.universal.location.LocationPermission.COARSE)
+        ) {
+            Toast.makeText(context, "Grant location permission first", Toast.LENGTH_LONG).show()
+            return
+        }
         engine.startTracking()
         LocationTrackingService.start(context.applicationContext, engine)
         refreshDiagnostics()
@@ -148,7 +178,7 @@ class MainViewModel : ViewModel() {
         refreshDiagnostics()
     }
 
-    fun requestFreshLocation() {
+    fun requestFreshLocation(context: Context? = null) {
         val engine = _engine.value ?: return
         viewModelScope.launch {
             val event = engine.locationCapturer?.requestFreshLocation()
@@ -156,12 +186,16 @@ class MainViewModel : ViewModel() {
                 engine.recordEvent(event)
                 _lastCapturedEvent.value = event
             }
-            refreshDiagnostics()
+            if (context != null) {
+                triggerManualSync(context)
+            } else {
+                refreshDiagnostics()
+            }
         }
     }
 
     fun refreshDiagnostics() {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO) {
             _diagnostics.value = _engine.value?.diagnostics() ?: EngineDiagnostics(0, null, 0, 0)
         }
     }
