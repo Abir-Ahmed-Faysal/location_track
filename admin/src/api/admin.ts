@@ -11,6 +11,7 @@ export const adminApi = {
     return request<DevicePage>(`/admin/devices?${query}`, { signal });
   },
   device: (id: string, signal?: AbortSignal) => request<AdminDevice>(`/admin/devices/${encodeURIComponent(id)}`, { signal }),
+  updateDeviceStatus: (id: string, status: 'ACTIVE' | 'INACTIVE') => request<{ id: string; status: string }>(`/admin/devices/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   history: (id: string, params: { limit?: number; cursor?: string; from?: string; to?: string }, signal?: AbortSignal) => {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => { if (value !== undefined && value !== '') query.set(key, String(value)); });

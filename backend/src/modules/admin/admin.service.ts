@@ -10,6 +10,16 @@ const ACTIVE_WINDOW_SECONDS = 5 * 60;
 export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async updateDeviceStatus(deviceId: string, status: 'ACTIVE' | 'INACTIVE') {
+    const device = await this.prisma.device.findUnique({ where: { id: deviceId } });
+    if (!device) throw new NotFoundException('Device');
+    return this.prisma.device.update({
+      where: { id: deviceId },
+      data: { status },
+      select: { id: true, status: true },
+    });
+  }
+
   /** Returns only fleet totals backed by persisted database fields. */
   async overview() {
     const now = new Date();

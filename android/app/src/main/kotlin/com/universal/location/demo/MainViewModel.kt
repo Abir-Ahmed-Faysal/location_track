@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -67,6 +68,91 @@ class MainViewModel : ViewModel() {
 
     private var connectivityJob: Job? = null
     private var engineStatusJob: Job? = null
+    private var approvalJob: Job? = null
+    private val _adminSettingsUnlocked = MutableStateFlow(false)
+    val adminSettingsUnlocked: StateFlow<Boolean> = _adminSettingsUnlocked.asStateFlow()
+    private val _adminLoginMessage = MutableStateFlow<String?>(null)
+    val adminLoginMessage: StateFlow<String?> = _adminLoginMessage.asStateFlow()
+
+    fun loginAdmin(context: Context, emailInput: String, passwordInput: String) {
+        val appContext = context.applicationContext
+        if (!isValidApiUrl() || emailInput.isBlank() || passwordInput.isBlank()) {
+            _adminLoginMessage.value = "Enter the administrator email and password."
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val client = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).build()
+                val body = Gson().toJson(mapOf("email" to emailInput.trim(), "password" to passwordInput))
+                val loginRequest = Request.Builder()
+                    .url("${apiBaseUrl.value.trimEnd('/')}/auth/login")
+                    .post(body.toRequestBody("application/json".toMediaType()))
+                    .header("bypass-tunnel-reminder", "true")
+                    .build()
+                val token = client.newCall(loginRequest).execute().use { response ->
+                    if (!response.isSuccessful) return@use null
+                    val json = Gson().fromJson(response.body?.string().orEmpty(), Map::class.java) as? Map<*, *>
+                    json?.get("accessToken") as? String
+                }
+                if (token.isNullOrBlank()) {
+                    _adminLoginMessage.value = "Administrator credentials were not accepted."
+                    return@launch
+                }
+                val profileRequest = Request.Builder()
+                    .url("${apiBaseUrl.value.trimEnd('/')}/auth/profile")
+                    .get()
+                    .header("Authorization", "Bearer $token")
+                    .build()
+                val role = client.newCall(profileRequest).execute().use { response ->
+                    val json = Gson().fromJson(response.body?.string().orEmpty(), Map::class.java) as? Map<*, *>
+                    json?.get("role") as? String
+                }
+                if (role == "ADMIN") {
+                    _adminSettingsUnlocked.value = true
+                    _adminLoginMessage.value = null
+                } else {
+                    _adminLoginMessage.value = "This account does not have administrator access."
+                }
+            } catch (e: Exception) {
+                _adminLoginMessage.value = "Administrator login failed: ${e.message ?: "network error"}"
+            }
+        }
+    }
+
+    fun registerUser(context: Context, nameInput: String, emailInput: String, passwordInput: String) {
+        val appContext = context.applicationContext
+        if (!isValidApiUrl() || emailInput.isBlank() || passwordInput.length < 8) {
+            Toast.makeText(appContext, "Enter a valid API URL, email, and password of at least 8 characters", Toast.LENGTH_LONG).show()
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val client = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).build()
+                val jsonBody = Gson().toJson(mapOf("name" to nameInput.trim(), "email" to emailInput.trim(), "password" to passwordInput))
+                val request = Request.Builder()
+                    .url("${apiBaseUrl.value.trimEnd('/')}/auth/signup")
+                    .post(jsonBody.toRequestBody("application/json".toMediaType()))
+                    .header("bypass-tunnel-reminder", "true")
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        viewModelScope.launch(Dispatchers.Main) {
+                            Toast.makeText(appContext, "Account created. Signing in and requesting device approval…", Toast.LENGTH_LONG).show()
+                        }
+                        loginUser(appContext, emailInput, passwordInput)
+                    } else {
+                        viewModelScope.launch(Dispatchers.Main) {
+                            Toast.makeText(appContext, "Registration failed (${response.code}). Email may already be registered.", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                viewModelScope.launch(Dispatchers.Main) {
+                    Toast.makeText(appContext, "Registration network error: ${e.message ?: "unknown error"}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
 
     val isTrackingServiceRunning: StateFlow<Boolean> = LocationTrackingService.isServiceRunning
 
@@ -135,11 +221,40 @@ class MainViewModel : ViewModel() {
                     val jsonObj = Gson().fromJson(responseStr, Map::class.java) as Map<String, Any>
                     val token = jsonObj["accessToken"] as? String
                     if (!token.isNullOrBlank()) {
-                        authToken.value = token
-                        SecureTokenStore(appContext).write(token)
-                        applyEngineConfig(appContext)
-                        viewModelScope.launch(Dispatchers.Main) {
-                            Toast.makeText(appContext, "Signed in successfully!", Toast.LENGTH_SHORT).show()
+                        val registration = registerDevice(client, token)
+                        if (registration.approved) {
+                            authToken.value = token
+                            SecureTokenStore(appContext).write(token)
+                            applyEngineConfig(appContext)
+                            startTracking(appContext)
+                            viewModelScope.launch(Dispatchers.Main) {
+                                Toast.makeText(appContext, "Signed in and device linked successfully!", Toast.LENGTH_SHORT).show()
+                            }
+                        } else if (registration.status == "PENDING") {
+                            SecureTokenStore(appContext).write(token)
+                            approvalJob?.cancel()
+                            approvalJob = viewModelScope.launch(Dispatchers.IO) {
+                                while (true) {
+                                    delay(10_000)
+                                    val current = registerDevice(client, token)
+                                    if (current.approved) {
+                                        authToken.value = token
+                                        applyEngineConfig(appContext)
+                                        startTracking(appContext)
+                                        launch(Dispatchers.Main) {
+                                            Toast.makeText(appContext, "Device approved. Tracking is now active.", Toast.LENGTH_LONG).show()
+                                        }
+                                        break
+                                    }
+                                }
+                            }
+                            viewModelScope.launch(Dispatchers.Main) {
+                                Toast.makeText(appContext, "Device enrollment pending admin approval.", Toast.LENGTH_LONG).show()
+                            }
+                        } else {
+                            viewModelScope.launch(Dispatchers.Main) {
+                                Toast.makeText(appContext, registration.message, Toast.LENGTH_LONG).show()
+                            }
                         }
                     }
                 } else {
@@ -153,6 +268,35 @@ class MainViewModel : ViewModel() {
                 }
             }
         }
+    }
+
+    private fun registerDevice(client: OkHttpClient, token: String): RegistrationResult {
+        return try {
+            val jsonBody = Gson().toJson(
+                mapOf("externalDeviceKey" to deviceId.value.trim(), "platform" to "ANDROID")
+            )
+            val request = Request.Builder()
+                .url("${apiBaseUrl.value.trimEnd('/')}/devices/register")
+                .post(jsonBody.toRequestBody("application/json".toMediaType()))
+                .header("Authorization", "Bearer $token")
+                .header("bypass-tunnel-reminder", "true")
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val body = response.body?.string().orEmpty()
+                    val json = Gson().fromJson(body, Map::class.java) as? Map<*, *>
+                    RegistrationResult(json?.get("status") as? String, "")
+                } else {
+                    RegistrationResult(null, "Device link failed (${response.code}). Check the device ID and account.")
+                }
+            }
+        } catch (e: Exception) {
+            RegistrationResult(null, "Device link failed: ${e.message ?: "network error"}")
+        }
+    }
+
+    private data class RegistrationResult(val status: String?, val message: String) {
+        val approved: Boolean get() = status == "ACTIVE"
     }
 
     private fun applyEngineConfig(appContext: Context) {

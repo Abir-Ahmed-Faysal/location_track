@@ -93,6 +93,12 @@ fun LocationDemoScreen(viewModel: MainViewModel) {
     val diagnostics by viewModel.diagnostics.collectAsState()
     val isServiceRunning by viewModel.isTrackingServiceRunning.collectAsState()
     val connectivity by viewModel.connectivityState.collectAsState()
+    val adminSettingsUnlocked by viewModel.adminSettingsUnlocked.collectAsState()
+    val adminLoginMessage by viewModel.adminLoginMessage.collectAsState()
+    var emailInput by remember { mutableStateOf("") }
+    var passwordInput by remember { mutableStateOf("") }
+    var nameInput by remember { mutableStateOf("") }
+    var registrationMode by remember { mutableStateOf(false) }
 
     var permissionsGranted by remember {
         mutableStateOf(
@@ -125,6 +131,25 @@ fun LocationDemoScreen(viewModel: MainViewModel) {
         ) {
             backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
         }
+    }
+
+    if (authToken.isBlank()) {
+        LoginOnlyScreen(
+            apiBaseUrl = apiBaseUrl,
+            onApiBaseUrlChange = { viewModel.apiBaseUrl.value = it },
+            showDeveloperSettings = BuildConfig.DEBUG,
+            email = emailInput,
+            onEmailChange = { emailInput = it },
+            password = passwordInput,
+            onPasswordChange = { passwordInput = it },
+            name = nameInput,
+            onNameChange = { nameInput = it },
+            registrationMode = registrationMode,
+            onRegistrationModeChange = { registrationMode = it },
+            onSignIn = { viewModel.loginUser(context, emailInput, passwordInput) },
+            onRegister = { viewModel.registerUser(context, nameInput, emailInput, passwordInput) },
+        )
+        return
     }
 
     Scaffold(
@@ -192,9 +217,6 @@ fun LocationDemoScreen(viewModel: MainViewModel) {
 
             // User Sign-In Section
             var showSignIn by remember { mutableStateOf(false) }
-            var emailInput by remember { mutableStateOf("") }
-            var passwordInput by remember { mutableStateOf("") }
-
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(
@@ -235,50 +257,68 @@ fun LocationDemoScreen(viewModel: MainViewModel) {
                 }
             }
 
-            // Configuration Form
+            // Protected administrator settings
+            var showAdminLogin by remember { mutableStateOf(false) }
+            var adminEmail by remember { mutableStateOf("") }
+            var adminPassword by remember { mutableStateOf("") }
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Configuration", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Text("Administrator Settings", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    if (!adminSettingsUnlocked) {
+                        Text("API, device identity, and tracking policies are protected.", color = Color.Gray)
+                        TextButton(onClick = { showAdminLogin = !showAdminLogin }) {
+                            Text(if (showAdminLogin) "Hide administrator login" else "Unlock configuration")
+                        }
+                        if (showAdminLogin) {
+                            OutlinedTextField(adminEmail, { adminEmail = it }, label = { Text("Administrator email") }, modifier = Modifier.fillMaxWidth())
+                            OutlinedTextField(adminPassword, { adminPassword = it }, label = { Text("Administrator password") }, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
+                            adminLoginMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                            Button(onClick = { viewModel.loginAdmin(context, adminEmail, adminPassword) }, modifier = Modifier.fillMaxWidth()) {
+                                Text("Unlock Settings")
+                            }
+                        }
+                    } else {
+                        Text("Configuration unlocked for administrator", color = Color(0xFF2E7D32))
 
-                    OutlinedTextField(
-                        value = apiBaseUrl,
-                        onValueChange = { viewModel.apiBaseUrl.value = it },
-                        label = { Text("API Base URL") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    OutlinedTextField(
-                        value = deviceId,
-                        onValueChange = { viewModel.deviceId.value = it },
-                        label = { Text("Device ID") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    OutlinedTextField(
-                        value = authToken,
-                        onValueChange = { viewModel.authToken.value = it },
-                        label = { Text("Auth Bearer Token") },
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Text("Tracking Profile", fontWeight = FontWeight.SemiBold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TrackingProfile.values().forEach { profile ->
-                            FilterChip(
-                                selected = trackingProfile == profile,
-                                onClick = { viewModel.trackingProfile.value = profile },
-                                label = { Text(profile.name) }
+                        if (BuildConfig.DEBUG) {
+                            OutlinedTextField(
+                                value = apiBaseUrl,
+                                onValueChange = { viewModel.apiBaseUrl.value = it },
+                                label = { Text("API Base URL (development)") },
+                                modifier = Modifier.fillMaxWidth()
                             )
                         }
-                    }
 
-                    Button(
-                        onClick = { viewModel.saveAndApplyConfiguration(context) },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Save & Apply Settings")
+                        OutlinedTextField(
+                            value = deviceId,
+                            onValueChange = { viewModel.deviceId.value = it },
+                            label = { Text("Device ID") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        OutlinedTextField(
+                            value = authToken,
+                            onValueChange = { viewModel.authToken.value = it },
+                            label = { Text("Auth Bearer Token") },
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Text("Tracking Profile", fontWeight = FontWeight.SemiBold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TrackingProfile.values().forEach { profile ->
+                                FilterChip(
+                                    selected = trackingProfile == profile,
+                                    onClick = { viewModel.trackingProfile.value = profile },
+                                    label = { Text(profile.name) }
+                                )
+                            }
+                        }
+
+                        Button(onClick = { viewModel.saveAndApplyConfiguration(context) }, modifier = Modifier.fillMaxWidth()) {
+                            Text("Save & Apply Settings")
+                        }
                     }
                 }
             }
@@ -369,6 +409,46 @@ fun LocationDemoScreen(viewModel: MainViewModel) {
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun LoginOnlyScreen(
+    apiBaseUrl: String,
+    onApiBaseUrlChange: (String) -> Unit,
+    showDeveloperSettings: Boolean,
+    email: String,
+    onEmailChange: (String) -> Unit,
+    password: String,
+    onPasswordChange: (String) -> Unit,
+    name: String,
+    onNameChange: (String) -> Unit,
+    registrationMode: Boolean,
+    onRegistrationModeChange: (Boolean) -> Unit,
+    onSignIn: () -> Unit,
+    onRegister: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Spacer(modifier = Modifier.height(36.dp))
+        Text("Universal Location Engine", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text(if (registrationMode) "Create your account and request device access." else "Sign in to enroll this device and start tracking.")
+        if (showDeveloperSettings) {
+            OutlinedTextField(apiBaseUrl, onApiBaseUrlChange, label = { Text("API Base URL (development)") }, modifier = Modifier.fillMaxWidth())
+        }
+        if (registrationMode) {
+            OutlinedTextField(name, onNameChange, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+        }
+        OutlinedTextField(email, onEmailChange, label = { Text("Email") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email), modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(password, onPasswordChange, label = { Text("Password") }, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
+        Button(onClick = if (registrationMode) onRegister else onSignIn, modifier = Modifier.fillMaxWidth()) {
+            Text(if (registrationMode) "Create Account" else "Sign In")
+        }
+        TextButton(onClick = { onRegistrationModeChange(!registrationMode) }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+            Text(if (registrationMode) "Already have an account? Sign in" else "New user? Create an account")
         }
     }
 }

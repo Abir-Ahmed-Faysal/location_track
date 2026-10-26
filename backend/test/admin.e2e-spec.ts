@@ -67,6 +67,11 @@ describe('Admin API (e2e)', () => {
       .set(ownerAuth)
       .send({ externalDeviceKey: `admin-e2e-${suffix}`, platform: 'ANDROID' })
       .expect(201);
+    await request(app.getHttpServer())
+      .patch(`/api/v1/admin/devices/${device.body.id}/status`)
+      .set(adminAuth)
+      .send({ status: 'ACTIVE' })
+      .expect(200);
     const eventId = crypto.randomUUID();
     const capturedAt = new Date().toISOString();
     await request(app.getHttpServer())

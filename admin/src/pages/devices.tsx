@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { adminApi } from '../api/admin';
 import { EmptyState, ErrorPanel, formatRelative, LoadingRows, PageHeading, statusClass } from '../components/ui';
@@ -9,6 +9,10 @@ export function DevicesPage() {
   const [settledSearch, setSettledSearch] = useState('');
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
+  const approve = useMutation({
+    mutationFn: (deviceId: string) => adminApi.updateDeviceStatus(deviceId, 'ACTIVE'),
+    onSuccess: () => void devices.refetch(),
+  });
   useEffect(() => { const timer = window.setTimeout(() => { setSettledSearch(search.trim()); setPage(1); }, 250); return () => window.clearTimeout(timer); }, [search]);
   const devices = useQuery({
     queryKey: ['admin-devices', page, settledSearch, status],
@@ -25,7 +29,7 @@ export function DevicesPage() {
           {data.items.map((device) => <tr key={device.id}>
             <td><Link className="device-id" to={`/admin/devices/${encodeURIComponent(device.id)}`}><span className="device-glyph">▣</span><span><strong>{shortId(device.id)}</strong><small title={device.id}>{device.id}</small></span></Link></td>
             <td><span className="owner-name">{device.owner?.name || 'Unnamed user'}</span><small className="table-subtext">{device.owner?.email || 'No owner assigned'}</small></td>
-            <td><span className={statusClass(device.status)}><i />{device.status}</span></td>
+            <td><span className={statusClass(device.status)}><i />{device.status}</span>{device.status === 'PENDING' && <button className="button button-secondary" onClick={() => approve.mutate(device.id)} disabled={approve.isPending}>Approve</button>}</td>
             <td><span className={freshnessClass(device.latestLocation?.freshnessStatus)}><i />{device.latestLocation ? formatRelative(device.latestLocation.capturedAt) : 'No location'}</span></td>
             <td className="coordinates">{device.latestLocation ? `${device.latestLocation.latitude.toFixed(5)}, ${device.latestLocation.longitude.toFixed(5)}` : '—'}</td>
             <td><span className="platform-tag">{device.platform}</span></td><td><Link aria-label={`Open device ${shortId(device.id)}`} className="row-open" to={`/admin/devices/${encodeURIComponent(device.id)}`}>↗</Link></td>

@@ -5,6 +5,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import crypto from 'node:crypto';
 import { AppModule } from './../src/app.module';
+import { PrismaService } from './../src/prisma/prisma.service';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
@@ -41,6 +42,7 @@ describe('AppController (e2e)', () => {
   });
 
   it('ingests and reads a location for an authenticated device', async () => {
+    const prisma = app.get(PrismaService);
     const suffix = crypto.randomUUID().slice(0, 8);
     const email = `e2e-${suffix}@example.com`;
     const password = 'SmokePassword123!';
@@ -61,6 +63,7 @@ describe('AppController (e2e)', () => {
       .set(auth)
       .send({ externalDeviceKey: `e2e-${suffix}`, platform: 'ANDROID' })
       .expect(201);
+    await prisma.device.update({ where: { id: device.body.id }, data: { status: 'ACTIVE' } });
     const eventId = crypto.randomUUID();
 
     const batch = {

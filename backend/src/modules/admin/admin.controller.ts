@@ -1,8 +1,9 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { AdminGuard } from './admin.guard';
 import { AdminService } from './admin.service';
 import { AdminDevicesQueryDto, AdminHistoryQueryDto } from './dto/admin-devices-query.dto';
+import { UpdateDeviceStatusDto } from './dto/update-device-status.dto';
 
 /** Read-only endpoints for explicitly provisioned administrators. */
 @Controller('admin')
@@ -23,6 +24,11 @@ export class AdminController {
   @Get('devices/:deviceId')
   getDevice(@Param('deviceId') deviceId: string) {
     return this.adminService.getDevice(deviceId);
+  }
+
+  @Patch('devices/:deviceId/status')
+  updateDeviceStatus(@Param('deviceId') deviceId: string, @Body() input: UpdateDeviceStatusDto) {
+    return this.adminService.updateDeviceStatus(deviceId, input.status);
   }
 
   @Get('devices/:deviceId/locations/history')
