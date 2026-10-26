@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { LngLatBounds, Map as MapLibreMap, Marker, NavigationControl, type Map as MapInstance, type StyleSpecification } from 'maplibre-gl';
 import { Link, useParams } from 'react-router-dom';
 import { adminApi } from '../api/admin';
 import type { LocationEvent } from '../api/types';
@@ -14,12 +13,6 @@ const GAP_THRESHOLD_MS = 30 * 60_000;
 const STATIONARY_SPEED_MPS = 0.8;
 const STATIONARY_RADIUS_METERS = 30;
 const STATIONARY_MIN_DURATION_MS = 5 * 60_000;
-
-const routeMapStyle: StyleSpecification = {
-  version: 8,
-  sources: { routeTiles: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 19, attribution: '© OpenStreetMap contributors' } },
-  layers: [{ id: 'routeTiles', type: 'raster', source: 'routeTiles' }],
-};
 
 type TravelMode = 'driving' | 'walking';
 type LoadState = 'idle' | 'loading' | 'complete' | 'partial' | 'error';
@@ -124,7 +117,9 @@ export function HistoryPage() {
         {partial && <div className="state-panel" style={{ margin: 14, borderColor: '#ead9b5', background: '#fffaf0' }}><div><strong>Partial data</strong><p>Some older points may not be loaded because loading was cancelled or the safety cap was reached.</p><p>Loaded range: {formatDate(loadedRange.start)} → {formatDate(loadedRange.end)}</p></div></div>}
         <section className="panel" style={{ margin: 14, overflow: 'hidden' }}>
           <div className="panel-header" style={{ padding: '16px 18px' }}><div><div className="section-eyebrow">MOVEMENT ROUTE</div><h3>Recorded GPS segments</h3></div><span>{processed.summary.final.toLocaleString()} accepted points</span></div>
-          <RouteMap segments={processed.segments} />
+          <div style={{ padding: '18px', background: '#f7faf9', color: '#718087', fontSize: 11 }}>
+            The recorded route will open in Google Maps. This is an approximate road route based on the filtered GPS points.
+          </div>
           <div style={{ padding: '12px 18px', borderTop: '1px solid #edf1f2', display: 'grid', gap: 8, fontSize: 10, color: '#718087' }}>
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}><span>{partial ? 'Start of loaded range' : 'Start'}: {formatDate(segment?.[0]?.capturedAt ?? null)}</span><span>{partial ? 'End of loaded range' : 'End'}: {formatDate(segment?.at(-1)?.capturedAt ?? null)}</span><span>{processed.segments.length} segment{processed.segments.length === 1 ? '' : 's'}</span>{processed.summary.gaps > 0 && <span>Gaps: {processed.summary.gaps}, largest {formatDuration(processed.summary.largestGapMs)}</span>}</div>
             {processed.segments.length > 1 && <label>Google Maps segment <select value={selectedSegment} onChange={(e) => setSelectedSegment(Number(e.target.value))}>{processed.segments.map((part, index) => <option key={index} value={index}>Segment {index + 1} · {formatDate(part[0]?.capturedAt ?? null)} – {formatDate(part.at(-1)?.capturedAt ?? null)}</option>)}</select></label>}
@@ -220,16 +215,6 @@ function waypointScore(points: RouteSegment, index: number) {
   let score = point.speedMps != null && point.speedMps <= STATIONARY_SPEED_MPS ? 4 : 0;
   if (index > 0 && index < points.length - 1) score += turnAngle(points[index - 1], point, points[index + 1]) >= 30 ? 5 : 0;
   return score;
-}
-
-function RouteMap({ segments }: { segments: RouteSegment[] }) {
-  const container = useRef<HTMLDivElement>(null);
-  const map = useRef<MapInstance | null>(null);
-  const markers = useRef<Marker[]>([]);
-  const [ready, setReady] = useState(false);
-  useEffect(() => { if (!container.current) return; const instance = new MapLibreMap({ container: container.current, style: routeMapStyle, center: [90.4125, 23.8103], zoom: 5 }); instance.addControl(new NavigationControl({ showCompass: false }), 'top-right'); instance.on('load', () => setReady(true)); map.current = instance; return () => { markers.current.forEach((marker) => marker.remove()); instance.remove(); map.current = null; }; }, []);
-  useEffect(() => { const instance = map.current; if (!instance || !ready) return; for (let index = 0; index < 100; index += 1) { if (instance.getLayer(`route-line-${index}`)) instance.removeLayer(`route-line-${index}`); if (instance.getSource(`route-source-${index}`)) instance.removeSource(`route-source-${index}`); } markers.current.forEach((marker) => marker.remove()); markers.current = []; const all: [number, number][] = []; segments.forEach((segment, index) => { const coordinates = segment.map((point) => [point.longitude, point.latitude] as [number, number]); all.push(...coordinates); if (coordinates.length < 2) return; const data = { type: 'Feature' as const, properties: {}, geometry: { type: 'LineString' as const, coordinates } }; instance.addSource(`route-source-${index}`, { type: 'geojson', data }); instance.addLayer({ id: `route-line-${index}`, type: 'line', source: `route-source-${index}`, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#087f78', 'line-width': 4, 'line-opacity': 0.85 } }); }); if (all.length) { markers.current.push(new Marker({ color: '#168c78' }).setLngLat(all[0]).addTo(instance)); if (all.length > 1) markers.current.push(new Marker({ color: '#c46255' }).setLngLat(all.at(-1)!).addTo(instance)); const bounds = all.reduce((result, coordinate) => result.extend(coordinate), new LngLatBounds(all[0], all[0])); instance.fitBounds(bounds, { padding: 60, maxZoom: 16, duration: 0 }); } }, [segments, ready]);
-  return <div ref={container} style={{ height: 380, minHeight: 280, background: '#e7eeea' }} />;
 }
 
 function getLoadedRange(items: LocationEvent[]) { const dates = items.map((item) => new Date(item.capturedAt).getTime()).filter(Number.isFinite); return { start: dates.length ? new Date(Math.min(...dates)).toISOString() : null, end: dates.length ? new Date(Math.max(...dates)).toISOString() : null }; }
