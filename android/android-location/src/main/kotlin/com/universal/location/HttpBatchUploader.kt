@@ -74,27 +74,28 @@ class HttpBatchUploader(
         }
 
         return try {
-            val response = client.newCall(requestBuilder.build()).execute()
-            val responseBodyString = response.body?.string()
+            client.newCall(requestBuilder.build()).execute().use { response ->
+                val responseBodyString = response.body?.string()
 
-            if (response.isSuccessful && !responseBodyString.isNullOrBlank()) {
-                val parsed = gson.fromJson(responseBodyString, BatchIngestResponseJson::class.java)
-                val acceptedUuids = parsed.accepted?.mapNotNull { parseUuidSafely(it) }?.toSet() ?: emptySet()
-                val duplicateUuids = parsed.duplicates?.mapNotNull { parseUuidSafely(it) }?.toSet() ?: emptySet()
-                val expectedIds = events.map { it.eventId }.toSet()
-                val acknowledged = acceptedUuids + duplicateUuids
-                if (!acknowledged.containsAll(expectedIds)) {
+                if (response.isSuccessful && !responseBodyString.isNullOrBlank()) {
+                    val parsed = gson.fromJson(responseBodyString, BatchIngestResponseJson::class.java)
+                    val acceptedUuids = parsed.accepted?.mapNotNull { parseUuidSafely(it) }?.toSet() ?: emptySet()
+                    val duplicateUuids = parsed.duplicates?.mapNotNull { parseUuidSafely(it) }?.toSet() ?: emptySet()
+                    val expectedIds = events.map { it.eventId }.toSet()
+                    val acknowledged = acceptedUuids + duplicateUuids
+                    if (!acknowledged.containsAll(expectedIds)) {
+                        UploadResult.RetryableFailure()
+                    } else {
+                        UploadResult.Acknowledged(acceptedUuids, duplicateUuids)
+                    }
+                } else if (response.code == 429) {
+                    val retryAfter = response.header("Retry-After")?.toLongOrNull()
+                    UploadResult.RetryableFailure(retryAfterSeconds = retryAfter)
+                } else if (response.code in 500..599) {
                     UploadResult.RetryableFailure()
                 } else {
-                    UploadResult.Acknowledged(acceptedUuids, duplicateUuids)
+                    UploadResult.PermanentFailure("HTTP ${response.code}: ${responseBodyString ?: response.message}")
                 }
-            } else if (response.code == 429) {
-                val retryAfter = response.header("Retry-After")?.toLongOrNull()
-                UploadResult.RetryableFailure(retryAfterSeconds = retryAfter)
-            } else if (response.code in 500..599) {
-                UploadResult.RetryableFailure()
-            } else {
-                UploadResult.PermanentFailure("HTTP ${response.code}: ${responseBodyString ?: response.message}")
             }
         } catch (e: IOException) {
             UploadResult.RetryableFailure()

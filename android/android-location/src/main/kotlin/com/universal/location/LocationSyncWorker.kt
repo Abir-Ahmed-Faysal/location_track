@@ -8,6 +8,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import java.util.concurrent.TimeUnit
 
 /** Host application supplies these dependencies from its DI container. */
 fun interface SyncWorkerDependencies {
@@ -53,10 +54,18 @@ class LocationSyncWorker(
         fun enqueue(context: Context) {
             val request = OneTimeWorkRequestBuilder<LocationSyncWorker>()
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                .setBackoffCriteria(
+                    androidx.work.BackoffPolicy.EXPONENTIAL,
+                    10,
+                    TimeUnit.SECONDS,
+                )
                 .build()
             WorkManager.getInstance(context).enqueueUniqueWork(
                 "universal-location-sync",
-                ExistingWorkPolicy.KEEP,
+                // A location can be captured while the current worker is in its
+                // final queue check. APPEND_OR_REPLACE preserves that enqueue
+                // instead of dropping it like KEEP does for running work.
+                ExistingWorkPolicy.APPEND_OR_REPLACE,
                 request,
             )
         }

@@ -215,48 +215,6 @@ fun LocationDemoScreen(viewModel: MainViewModel) {
                 }
             }
 
-            // User Sign-In Section
-            var showSignIn by remember { mutableStateOf(false) }
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("User Sign-In (Option A)", fontWeight = FontWeight.Bold)
-                        TextButton(onClick = { showSignIn = !showSignIn }) {
-                            Text(if (showSignIn) "Hide" else "Sign In")
-                        }
-                    }
-                    if (showSignIn) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = emailInput,
-                            onValueChange = { emailInput = it },
-                            label = { Text("User Email") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = passwordInput,
-                            onValueChange = { passwordInput = it },
-                            label = { Text("Password") },
-                            visualTransformation = PasswordVisualTransformation(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Button(
-                            onClick = { viewModel.loginUser(context, emailInput, passwordInput) },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Sign In & Auto-Link Device")
-                        }
-                    }
-                }
-            }
-
             // Protected administrator settings
             var showAdminLogin by remember { mutableStateOf(false) }
             var adminEmail by remember { mutableStateOf("") }
