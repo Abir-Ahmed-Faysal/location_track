@@ -2,6 +2,7 @@ package com.universal.location.demo
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.provider.Settings
 import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -35,6 +36,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.time.Duration
 import java.time.Instant
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 enum class FreshnessBadge { FRESH, DELAYED, STALE }
@@ -45,10 +47,9 @@ class MainViewModel : ViewModel() {
     private val KEY_API_URL = "api_base_url"
     private val KEY_DEVICE_ID = "device_id"
     private val DEFAULT_PROD_URL = "https://ule-backend.onrender.com/api/v1"
-    private val DEFAULT_DEVICE_ID = "device-android-001"
 
     val apiBaseUrl = MutableStateFlow(DEFAULT_PROD_URL)
-    val deviceId = MutableStateFlow(DEFAULT_DEVICE_ID)
+    val deviceId = MutableStateFlow("")
     val authToken = MutableStateFlow("")
     val trackingProfile = MutableStateFlow(TrackingProfile.BALANCED)
 
@@ -161,7 +162,7 @@ class MainViewModel : ViewModel() {
         val prefs: SharedPreferences = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
         val savedUrl = prefs.getString(KEY_API_URL, DEFAULT_PROD_URL) ?: DEFAULT_PROD_URL
-        val savedDeviceId = prefs.getString(KEY_DEVICE_ID, DEFAULT_DEVICE_ID) ?: DEFAULT_DEVICE_ID
+        val savedDeviceId = getOrCreateDeviceId(appContext, prefs)
         val savedToken = SecureTokenStore(appContext).read().orEmpty()
 
         apiBaseUrl.value = savedUrl
@@ -287,7 +288,14 @@ class MainViewModel : ViewModel() {
                     val json = Gson().fromJson(body, Map::class.java) as? Map<*, *>
                     RegistrationResult(json?.get("status") as? String, "")
                 } else {
-                    RegistrationResult(null, "Device link failed (${response.code}). Check the device ID and account.")
+                    val body = response.body?.string().orEmpty()
+                    val payload = Gson().fromJson(body, Map::class.java) as? Map<*, *>
+                    val error = payload?.get("error") as? Map<*, *>
+                    val serverMessage = error?.get("message") as? String
+                    RegistrationResult(
+                        null,
+                        serverMessage ?: "Device link failed (${response.code}). Check the device ID and account.",
+                    )
                 }
             }
         } catch (e: Exception) {
@@ -297,6 +305,26 @@ class MainViewModel : ViewModel() {
 
     private data class RegistrationResult(val status: String?, val message: String) {
         val approved: Boolean get() = status == "ACTIVE"
+    }
+
+    private fun getOrCreateDeviceId(
+        appContext: Context,
+        prefs: SharedPreferences,
+    ): String {
+        val saved = prefs.getString(KEY_DEVICE_ID, null)?.trim()
+        if (!saved.isNullOrBlank() && saved != "device-android-001") return saved
+
+        val androidId = Settings.Secure.getString(
+            appContext.contentResolver,
+            Settings.Secure.ANDROID_ID,
+        )?.trim()
+        val generated = if (!androidId.isNullOrBlank()) {
+            "android-$androidId"
+        } else {
+            "android-${UUID.randomUUID()}"
+        }
+        prefs.edit().putString(KEY_DEVICE_ID, generated).apply()
+        return generated
     }
 
     private fun applyEngineConfig(appContext: Context) {
