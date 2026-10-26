@@ -11,7 +11,7 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-/** Stores the demo access token encrypted by an Android Keystore AES key. */
+/** Stores access and refresh tokens encrypted by Android Keystore AES keys. */
 class SecureTokenStore(context: Context) {
     private val preferences = context.applicationContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
 
@@ -33,7 +33,18 @@ class SecureTokenStore(context: Context) {
         }.getOrNull()
     }
 
+    fun readRefreshToken(): String? = readValue(REFRESH_TOKEN_KEY)
+
     fun write(token: String) {
+        writeValue(ENCRYPTED_TOKEN_KEY, token)
+    }
+
+    fun write(accessToken: String, refreshToken: String) {
+        writeValue(ENCRYPTED_TOKEN_KEY, accessToken)
+        writeValue(REFRESH_TOKEN_KEY, refreshToken)
+    }
+
+    private fun writeValue(storageKey: String, token: String) {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, key())
         val iv = cipher.iv
@@ -47,13 +58,26 @@ class SecureTokenStore(context: Context) {
         iv.copyInto(payload, 4)
         ciphertext.copyInto(payload, 4 + iv.size)
         preferences.edit()
-            .putString(ENCRYPTED_TOKEN_KEY, Base64.encodeToString(payload, Base64.NO_WRAP))
+            .putString(storageKey, Base64.encodeToString(payload, Base64.NO_WRAP))
             .remove(LEGACY_TOKEN_KEY)
             .apply()
     }
 
     fun clear() {
-        preferences.edit().remove(ENCRYPTED_TOKEN_KEY).remove(LEGACY_TOKEN_KEY).apply()
+        preferences.edit().remove(ENCRYPTED_TOKEN_KEY).remove(REFRESH_TOKEN_KEY).remove(LEGACY_TOKEN_KEY).apply()
+    }
+
+    private fun readValue(storageKey: String): String? {
+        val encrypted = preferences.getString(storageKey, null) ?: return null
+        return runCatching {
+            val decoded = Base64.decode(encrypted, Base64.DEFAULT)
+            val ivLength = decoded.copyOfRange(0, 4).toInt()
+            val iv = decoded.copyOfRange(4, 4 + ivLength)
+            val ciphertext = decoded.copyOfRange(4 + ivLength, decoded.size)
+            val cipher = Cipher.getInstance(TRANSFORMATION)
+            cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, iv))
+            cipher.doFinal(ciphertext).toString(StandardCharsets.UTF_8)
+        }.getOrNull()
     }
 
     private fun key(): SecretKey {
@@ -80,6 +104,7 @@ class SecureTokenStore(context: Context) {
         private const val KEY_ALIAS = "ule_demo_access_token"
         private const val PREFERENCES = "ule_settings_prefs"
         private const val ENCRYPTED_TOKEN_KEY = "auth_token_encrypted"
+        private const val REFRESH_TOKEN_KEY = "refresh_token_encrypted"
         private const val LEGACY_TOKEN_KEY = "auth_token"
     }
 }

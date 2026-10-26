@@ -234,18 +234,19 @@ class MainViewModel : ViewModel() {
                     @Suppress("UNCHECKED_CAST")
                     val jsonObj = Gson().fromJson(responseStr, Map::class.java) as Map<String, Any>
                     val token = jsonObj["accessToken"] as? String
-                    if (!token.isNullOrBlank()) {
+                    val refreshToken = jsonObj["refreshToken"] as? String
+                    if (!token.isNullOrBlank() && !refreshToken.isNullOrBlank()) {
                         val registration = registerDevice(client, token)
                         if (registration.approved) {
                             authToken.value = token
-                            SecureTokenStore(appContext).write(token)
+                            SecureTokenStore(appContext).write(token, refreshToken)
                             applyEngineConfig(appContext)
                             startTracking(appContext)
                             viewModelScope.launch(Dispatchers.Main) {
                                 Toast.makeText(appContext, "Signed in and device linked successfully!", Toast.LENGTH_SHORT).show()
                             }
                         } else if (registration.status == "PENDING") {
-                            SecureTokenStore(appContext).write(token)
+                            SecureTokenStore(appContext).write(token, refreshToken)
                             approvalJob?.cancel()
                             approvalJob = viewModelScope.launch(Dispatchers.IO) {
                                 while (true) {
@@ -398,6 +399,7 @@ class MainViewModel : ViewModel() {
         }
 
         val roomQueue = RoomEventQueue.create(appContext)
+        val authSession = AuthSession(appContext, apiBaseUrl.value)
 
         val engine = UniversalLocationEngine.Builder()
             .apiBaseUrl(apiBaseUrl.value)
@@ -409,7 +411,16 @@ class MainViewModel : ViewModel() {
             .build()
 
         LocationSyncRuntime.dependencies = SyncWorkerDependencies {
-            val uploader = HttpBatchUploader(apiBaseUrl.value, authToken.value)
+            val uploader = HttpBatchUploader(
+                apiBaseUrl = apiBaseUrl.value,
+                authToken = authToken.value,
+                currentAccessToken = authSession::accessToken,
+                refreshAccessToken = {
+                    val refreshed = authSession.refreshAccessToken()
+                    if (!refreshed.isNullOrBlank()) authToken.value = refreshed
+                    refreshed
+                },
+            )
             val coordinator = SyncCoordinator(
                 queue = roomQueue,
                 uploader = uploader,
@@ -470,6 +481,41 @@ class MainViewModel : ViewModel() {
         engine.stopTracking()
         LocationTrackingService.stop(context.applicationContext)
         refreshDiagnostics()
+    }
+
+    fun logout(context: Context) {
+        val appContext = context.applicationContext
+        viewModelScope.launch(Dispatchers.IO) {
+            val session = AuthSession(appContext, apiBaseUrl.value)
+            runCatching {
+                val accessToken = session.accessToken()
+                    ?: session.refreshAccessToken()
+                val refreshToken = SecureTokenStore(appContext).readRefreshToken()
+                if (!accessToken.isNullOrBlank()) {
+                    val body = Gson().toJson(mapOf("refreshToken" to refreshToken))
+                    val request = Request.Builder()
+                        .url("${apiBaseUrl.value.trimEnd('/')}/auth/logout")
+                        .post(body.toRequestBody("application/json".toMediaType()))
+                        .header("Authorization", "Bearer $accessToken")
+                        .header("bypass-tunnel-reminder", "true")
+                        .build()
+                    OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).build()
+                        .newCall(request).execute().close()
+                }
+            }
+            stopTrackingIfRunning(appContext)
+            SecureTokenStore(appContext).clear()
+            authToken.value = ""
+            _engine.value = null
+            viewModelScope.launch(Dispatchers.Main) {
+                Toast.makeText(appContext, "Signed out", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun stopTrackingIfRunning(context: Context) {
+        TrackingSettings.setTrackingEnabled(context, false)
+        LocationTrackingService.stop(context)
     }
 
     fun triggerManualSync(context: Context) {

@@ -41,6 +41,8 @@ data class BatchIngestResponseJson(
 class HttpBatchUploader(
     private val apiBaseUrl: String,
     private val authToken: String? = null,
+    private val currentAccessToken: (() -> String?)? = null,
+    private val refreshAccessToken: (suspend () -> String?)? = null,
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(45, TimeUnit.SECONDS)
         .readTimeout(45, TimeUnit.SECONDS)
@@ -69,12 +71,28 @@ class HttpBatchUploader(
             .post(jsonPayload.toRequestBody(jsonMediaType))
             .header("bypass-tunnel-reminder", "true")
 
-        if (!authToken.isNullOrBlank()) {
-            requestBuilder.header("Authorization", "Bearer $authToken")
+        val token = currentAccessToken?.invoke() ?: authToken
+        if (!token.isNullOrBlank()) {
+            requestBuilder.header("Authorization", "Bearer $token")
         }
 
         return try {
-            client.newCall(requestBuilder.build()).execute().use { response ->
+            var response = client.newCall(requestBuilder.build()).execute()
+            if (response.code == 401 && refreshAccessToken != null) {
+                response.close()
+                val refreshedToken = refreshAccessToken.invoke()
+                if (refreshedToken.isNullOrBlank()) {
+                    return UploadResult.PermanentFailure("Authentication expired; device re-enrollment is required")
+                }
+                val retryRequest = Request.Builder()
+                    .url(requestUrl)
+                    .post(jsonPayload.toRequestBody(jsonMediaType))
+                    .header("bypass-tunnel-reminder", "true")
+                    .header("Authorization", "Bearer $refreshedToken")
+                    .build()
+                response = client.newCall(retryRequest).execute()
+            }
+            response.use { response ->
                 val responseBodyString = response.body?.string()
 
                 if (response.isSuccessful && !responseBodyString.isNullOrBlank()) {

@@ -11,6 +11,7 @@ import type { Request } from 'express';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { DevicesService } from './devices.service';
 import { RegisterDeviceDto } from './dto/register-device.dto';
+import { HeartbeatDto } from './dto/heartbeat.dto';
 
 /** Device enrollment endpoints. */
 @Controller('devices')
@@ -25,6 +26,15 @@ export class DevicesController {
     @Req() request: Request & { user?: { id?: string } },
   ) {
     return this.devicesService.register(input, request.user?.id as string);
+  }
+
+  /** Records that an enrolled device is online without creating a GPS event. */
+  @Post('heartbeat')
+  heartbeat(
+    @Body() input: HeartbeatDto,
+    @Req() request: Request & { user?: { id?: string } },
+  ) {
+    return this.devicesService.heartbeat(input.externalDeviceKey, request.user?.id as string);
   }
 
   /** Gets a registered active device by its internal UUID. */

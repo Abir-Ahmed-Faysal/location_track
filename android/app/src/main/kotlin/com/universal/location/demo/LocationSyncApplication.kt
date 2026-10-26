@@ -8,6 +8,8 @@ import com.universal.location.HttpBatchUploader
 import com.universal.location.LocationEngineFactory
 import com.universal.location.LocationSyncRuntime
 import com.universal.location.LocationTrackingRuntime
+import com.universal.location.LocationHeartbeatSenderFactory
+import com.universal.location.LocationHeartbeatRuntime
 import com.universal.location.RoomEventQueue
 import com.universal.location.SyncCoordinator
 import com.universal.location.SyncWorkerDependencies
@@ -24,6 +26,10 @@ class LocationSyncApplication : Application() {
         }
         LocationSyncRuntime.dependenciesFactory = SyncWorkerDependenciesFactory { context ->
             createSyncDependencies(context)
+        }
+        LocationHeartbeatRuntime.senderFactory = LocationHeartbeatSenderFactory { context ->
+            val config = readConfig(context)
+            config?.let { HeartbeatClient(context, it.apiUrl, it.deviceId) }
         }
     }
 
@@ -43,8 +49,17 @@ class LocationSyncApplication : Application() {
     private fun createSyncDependencies(context: android.content.Context): SyncWorkerDependencies? {
         val config = readConfig(context) ?: return null
         val queue = RoomEventQueue.create(context)
+        val authSession = AuthSession(context, config.apiUrl)
         return SyncWorkerDependencies {
-            SyncCoordinator(queue, HttpBatchUploader(config.apiUrl, config.authToken)).syncOnce()
+            SyncCoordinator(
+                queue,
+                HttpBatchUploader(
+                    apiBaseUrl = config.apiUrl,
+                    authToken = config.authToken,
+                    currentAccessToken = authSession::accessToken,
+                    refreshAccessToken = { authSession.refreshAccessToken() },
+                ),
+            ).syncOnce()
         }
     }
 

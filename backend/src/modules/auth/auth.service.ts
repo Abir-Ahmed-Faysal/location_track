@@ -98,10 +98,18 @@ export class AuthService {
     const payload = this.jwtService.verifyRefreshToken(dto.refreshToken);
     const userId = payload.sub as string;
 
-    const session = await this.prisma.session.findFirst({
+    const sessions = await this.prisma.session.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
     });
+
+    let session: (typeof sessions)[number] | undefined;
+    for (const candidate of sessions) {
+      if (await bcrypt.compare(dto.refreshToken, candidate.refreshTokenHash)) {
+        session = candidate;
+        break;
+      }
+    }
 
     if (!session) {
       throw new UnauthorizedException('Invalid refresh token');
@@ -109,14 +117,6 @@ export class AuthService {
 
     if (session.expiresAt < new Date()) {
       throw new UnauthorizedException('Refresh token has expired');
-    }
-
-    const isValid = await bcrypt.compare(
-      dto.refreshToken,
-      session.refreshTokenHash,
-    );
-    if (!isValid) {
-      throw new UnauthorizedException('Invalid refresh token');
     }
 
     const newRefreshToken = this.jwtService.generateRefreshToken({

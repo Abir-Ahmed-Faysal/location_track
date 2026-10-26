@@ -48,6 +48,20 @@ export class DevicesService {
     return this.prisma.device.update({ where: { id: deviceId }, data: { status } });
   }
 
+  async heartbeat(externalDeviceKey: string, ownerId: string) {
+    const device = await this.prisma.device.findFirst({
+      where: { externalDeviceKey, ownerId, status: 'ACTIVE' },
+      select: { id: true },
+    });
+    if (!device) throw new NotFoundException('Device');
+
+    return this.prisma.device.update({
+      where: { id: device.id },
+      data: { lastSeenAt: new Date() },
+      select: { id: true, lastSeenAt: true },
+    });
+  }
+
   /** Returns an active device or hides inaccessible IDs as a 404. */
   async findById(id: string, ownerId: string) {
     const device = await this.prisma.device.findFirst({

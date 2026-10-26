@@ -307,6 +307,13 @@ fun LocationDemoScreen(viewModel: MainViewModel) {
                 }
             }
 
+            OutlinedButton(
+                onClick = { viewModel.logout(context) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Log out")
+            }
+
             // Live Location Card
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

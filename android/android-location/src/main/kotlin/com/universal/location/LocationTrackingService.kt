@@ -19,12 +19,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
 class LocationTrackingService : Service() {
 
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
     private var captureJob: Job? = null
+    private var heartbeatJob: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -62,11 +65,27 @@ class LocationTrackingService : Service() {
             }
         }
 
+        heartbeatJob?.cancel()
+        val heartbeatSender = LocationHeartbeatRuntime.senderFactory?.create(applicationContext)
+        if (heartbeatSender != null) {
+            heartbeatJob = serviceScope.launch {
+                while (isActive) {
+                    try {
+                        heartbeatSender.send()
+                    } catch (_: Exception) {
+                        // Keep the tracking service alive; the next interval retries the heartbeat.
+                    }
+                    delay(HEARTBEAT_INTERVAL_MS)
+                }
+            }
+        }
+
         return START_STICKY
     }
 
     override fun onDestroy() {
         captureJob?.cancel()
+        heartbeatJob?.cancel()
         super.onDestroy()
         serviceScope.cancel()
         _isServiceRunning.value = false
@@ -99,6 +118,7 @@ class LocationTrackingService : Service() {
     companion object {
         const val CHANNEL_ID = "location_tracking_channel"
         const val NOTIFICATION_ID = 1001
+        private const val HEARTBEAT_INTERVAL_MS = 60_000L
 
         private val _isServiceRunning = MutableStateFlow(false)
         val isServiceRunning: StateFlow<Boolean> = _isServiceRunning.asStateFlow()
