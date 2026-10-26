@@ -42,9 +42,9 @@ class HttpBatchUploader(
     private val apiBaseUrl: String,
     private val authToken: String? = null,
     private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .writeTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(45, TimeUnit.SECONDS)
+        .readTimeout(45, TimeUnit.SECONDS)
+        .writeTimeout(45, TimeUnit.SECONDS)
         .build(),
     private val gson: Gson = Gson(),
 ) : BatchUploader {
@@ -81,8 +81,9 @@ class HttpBatchUploader(
                 val parsed = gson.fromJson(responseBodyString, BatchIngestResponseJson::class.java)
                 val acceptedUuids = parsed.accepted?.mapNotNull { parseUuidSafely(it) }?.toSet() ?: emptySet()
                 val duplicateUuids = parsed.duplicates?.mapNotNull { parseUuidSafely(it) }?.toSet() ?: emptySet()
+                val expectedIds = events.map { it.eventId }.toSet()
                 val acknowledged = acceptedUuids + duplicateUuids
-                if (acknowledged.intersect(events.map { it.eventId }.toSet()).size != events.size) {
+                if (!acknowledged.containsAll(expectedIds)) {
                     UploadResult.RetryableFailure()
                 } else {
                     UploadResult.Acknowledged(acceptedUuids, duplicateUuids)
@@ -97,7 +98,7 @@ class HttpBatchUploader(
             }
         } catch (e: IOException) {
             UploadResult.RetryableFailure()
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             UploadResult.RetryableFailure()
         }
     }

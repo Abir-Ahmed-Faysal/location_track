@@ -1,26 +1,57 @@
 package com.universal.location.demo
 
 import android.Manifest
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -69,11 +100,31 @@ fun LocationDemoScreen(viewModel: MainViewModel) {
         )
     }
 
+    val locationManager = remember { context.getSystemService(Context.LOCATION_SERVICE) as LocationManager }
+    var isGpsEnabled by remember {
+        mutableStateOf(
+            locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
+            locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+        )
+    }
+
+    val backgroundPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
         permissionsGranted = results[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
                 results[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (permissionsGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        }
     }
 
     Scaffold(
@@ -119,9 +170,74 @@ fun LocationDemoScreen(viewModel: MainViewModel) {
                 }
             }
 
-            // Engine Configuration Card
+            // System GPS Disabled Alert Banner
+            if (!isGpsEnabled) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("🚨 System GPS / Location is Turned OFF", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Turn ON Location in phone settings to capture GPS coordinates.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onErrorContainer)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(onClick = {
+                            context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+                        }) {
+                            Text("Turn ON Location Settings")
+                        }
+                    }
+                }
+            }
+
+            // User Sign-In Section
+            var showSignIn by remember { mutableStateOf(false) }
+            var emailInput by remember { mutableStateOf("") }
+            var passwordInput by remember { mutableStateOf("") }
+
             Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("User Sign-In (Option A)", fontWeight = FontWeight.Bold)
+                        TextButton(onClick = { showSignIn = !showSignIn }) {
+                            Text(if (showSignIn) "Hide" else "Sign In")
+                        }
+                    }
+                    if (showSignIn) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = emailInput,
+                            onValueChange = { emailInput = it },
+                            label = { Text("User Email") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = passwordInput,
+                            onValueChange = { passwordInput = it },
+                            label = { Text("Password") },
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = { viewModel.loginUser(context, emailInput, passwordInput) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Sign In & Auto-Link Device")
+                        }
+                    }
+                }
+            }
+
+            // Configuration Form
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("Configuration", fontWeight = FontWeight.Bold, fontSize = 18.sp)
 
                     OutlinedTextField(
@@ -141,16 +257,15 @@ fun LocationDemoScreen(viewModel: MainViewModel) {
                     OutlinedTextField(
                         value = authToken,
                         onValueChange = { viewModel.authToken.value = it },
-                        label = { Text("Auth Bearer Token (Optional)") },
+                        label = { Text("Auth Bearer Token") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Text("Tracking Profile", fontWeight = FontWeight.Medium)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        TrackingProfile.entries.forEach { profile ->
+                    Text("Tracking Profile", fontWeight = FontWeight.SemiBold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TrackingProfile.values().forEach { profile ->
                             FilterChip(
                                 selected = trackingProfile == profile,
                                 onClick = { viewModel.trackingProfile.value = profile },
@@ -158,8 +273,6 @@ fun LocationDemoScreen(viewModel: MainViewModel) {
                             )
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(4.dp))
 
                     Button(
                         onClick = { viewModel.saveAndApplyConfiguration(context) },
@@ -170,7 +283,7 @@ fun LocationDemoScreen(viewModel: MainViewModel) {
                 }
             }
 
-            // Tracking Control Switch
+            // Foreground Service Controller
             Card(modifier = Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier
@@ -182,18 +295,15 @@ fun LocationDemoScreen(viewModel: MainViewModel) {
                     Column {
                         Text("Location Service", fontWeight = FontWeight.Bold)
                         Text(
-                            if (isServiceRunning) "Tracking Active" else "Stopped",
+                            text = if (isServiceRunning) "Tracking Active" else "Stopped",
                             color = if (isServiceRunning) Color(0xFF2E7D32) else Color.Gray
                         )
                     }
                     Switch(
                         checked = isServiceRunning,
-                        onCheckedChange = { start ->
-                            if (start) {
-                                viewModel.startTracking(context)
-                            } else {
-                                viewModel.stopTracking(context)
-                            }
+                        onCheckedChange = { running ->
+                            if (running) viewModel.startTracking(context)
+                            else viewModel.stopTracking(context)
                         }
                     )
                 }
@@ -235,6 +345,7 @@ fun LocationDemoScreen(viewModel: MainViewModel) {
                     Text("Engine Diagnostics", fontWeight = FontWeight.Bold, fontSize = 18.sp)
 
                     Text("Network State: ${if (connectivity == ConnectivityState.ONLINE) "ONLINE" else "OFFLINE"}")
+                    Text("GPS Hardware: ${if (isGpsEnabled) "ENABLED" else "DISABLED"}")
                     Text("Queued Events: ${diagnostics.queuedEvents}")
                     Text("Uploaded Events: ${diagnostics.uploadedEvents}")
                     Text("Failed Uploads: ${diagnostics.failedUploads}")
@@ -269,12 +380,16 @@ fun FreshnessBadgeChip(badge: FreshnessBadge) {
         FreshnessBadge.DELAYED -> Color(0xFFF57F17) to "DELAYED"
         FreshnessBadge.STALE -> Color(0xFFC62828) to "STALE"
     }
-
-    Box(
-        modifier = Modifier
-            .background(color.copy(alpha = 0.15f), shape = RoundedCornerShape(12.dp))
-            .padding(horizontal = 10.dp, vertical = 4.dp)
+    Surface(
+        color = color.copy(alpha = 0.15f),
+        contentColor = color,
+        shape = MaterialTheme.shapes.small
     ) {
-        Text(text, color = color, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            fontWeight = FontWeight.Bold,
+            fontSize = 12.sp
+        )
     }
 }

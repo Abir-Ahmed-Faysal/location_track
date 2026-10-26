@@ -101,17 +101,27 @@ class FusedLocationCapturer(
                 fusedClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token)
                     .addOnSuccessListener { loc ->
                         if (loc != null) {
-                            continuation.resume(loc)
+                            if (continuation.isActive) continuation.resume(loc)
                         } else {
                             fusedClient.lastLocation
-                                .addOnSuccessListener { lastLoc -> continuation.resume(lastLoc) }
-                                .addOnFailureListener { continuation.resume(null) }
+                                .addOnSuccessListener { lastLoc ->
+                                    if (continuation.isActive) continuation.resume(lastLoc)
+                                }
+                                .addOnFailureListener {
+                                    if (continuation.isActive) continuation.resume(null)
+                                }
                         }
                     }
                     .addOnFailureListener {
-                        fusedClient.lastLocation
-                            .addOnSuccessListener { lastLoc -> continuation.resume(lastLoc) }
-                            .addOnFailureListener { continuation.resume(null) }
+                        if (continuation.isActive) {
+                            fusedClient.lastLocation
+                                .addOnSuccessListener { lastLoc ->
+                                    if (continuation.isActive) continuation.resume(lastLoc)
+                                }
+                                .addOnFailureListener {
+                                    if (continuation.isActive) continuation.resume(null)
+                                }
+                        }
                     }
             } else {
                 val provider = when {
@@ -120,21 +130,25 @@ class FusedLocationCapturer(
                     else -> null
                 }
                 if (provider == null) {
-                    continuation.resume(null)
+                    if (continuation.isActive) continuation.resume(null)
                 } else {
-                    val lastLoc = locationManager.getLastKnownLocation(provider)
+                    val lastLoc = try { locationManager.getLastKnownLocation(provider) } catch (_: Exception) { null }
                     if (lastLoc != null) {
-                        continuation.resume(lastLoc)
+                        if (continuation.isActive) continuation.resume(lastLoc)
                     } else {
                         val listener = object : LocationListener {
                             override fun onLocationChanged(l: Location) {
-                                locationManager.removeUpdates(this)
-                                continuation.resume(l)
+                                try { locationManager.removeUpdates(this) } catch (_: Exception) {}
+                                if (continuation.isActive) continuation.resume(l)
                             }
                             @Deprecated("Deprecated in Java")
                             override fun onStatusChanged(p: String?, s: Int, e: android.os.Bundle?) {}
                         }
-                        locationManager.requestLocationUpdates(provider, 0L, 0f, listener, Looper.getMainLooper())
+                        try {
+                            locationManager.requestLocationUpdates(provider, 0L, 0f, listener, Looper.getMainLooper())
+                        } catch (_: Exception) {
+                            if (continuation.isActive) continuation.resume(null)
+                        }
                     }
                 }
             }

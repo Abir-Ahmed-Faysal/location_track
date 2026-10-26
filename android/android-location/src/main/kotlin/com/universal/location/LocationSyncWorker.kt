@@ -14,8 +14,14 @@ fun interface SyncWorkerDependencies {
     suspend fun sync(): UploadResult
 }
 
+/** Rebuilds sync dependencies when WorkManager starts a new application process. */
+fun interface SyncWorkerDependenciesFactory {
+    fun create(context: Context): SyncWorkerDependencies?
+}
+
 object LocationSyncRuntime {
     @Volatile var dependencies: SyncWorkerDependencies? = null
+    @Volatile var dependenciesFactory: SyncWorkerDependenciesFactory? = null
 }
 
 class LocationSyncWorker(
@@ -23,14 +29,27 @@ class LocationSyncWorker(
     params: WorkerParameters,
 ) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
-        return when (LocationSyncRuntime.dependencies?.sync()) {
-            is UploadResult.Acknowledged -> Result.success()
-            is UploadResult.RetryableFailure, null -> Result.retry()
-            is UploadResult.PermanentFailure -> Result.failure()
+        val dependencies = LocationSyncRuntime.dependencies
+            ?: LocationSyncRuntime.dependenciesFactory?.create(applicationContext)
+            ?: return Result.retry()
+
+        repeat(MAX_BATCHES_PER_RUN) {
+            when (val result = dependencies.sync()) {
+                is UploadResult.Acknowledged -> {
+                    if (result.accepted.isEmpty() && result.duplicates.isEmpty()) {
+                        return Result.success()
+                    }
+                }
+                is UploadResult.RetryableFailure -> return Result.retry()
+                is UploadResult.PermanentFailure -> return Result.failure()
+            }
         }
+        return Result.retry()
     }
 
     companion object {
+        private const val MAX_BATCHES_PER_RUN = 20
+
         fun enqueue(context: Context) {
             val request = OneTimeWorkRequestBuilder<LocationSyncWorker>()
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())

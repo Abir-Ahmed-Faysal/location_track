@@ -34,8 +34,10 @@ export class AdminService {
 
   /** Lists devices and their latest persisted fix with bounded offset pagination. */
   async listDevices(query: AdminDevicesQueryDto) {
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 25;
+    // Keep the service safe for callers that construct DTOs outside Nest's
+    // transforming ValidationPipe (for example, integration tests).
+    const page = Number(query.page ?? 1);
+    const limit = Number(query.limit ?? 25);
     const search = query.search?.trim();
     const where = {
       ...(query.status ? { status: query.status } : {}),
@@ -146,6 +148,7 @@ export class AdminService {
     if (!device) throw new NotFoundException('Device');
 
     const cursor = query.cursor ? this.decodeCursor(query.cursor) : undefined;
+    const limit = Number(query.limit ?? 50);
     const items = await this.prisma.locationEvent.findMany({
       where: {
         deviceId,
@@ -162,7 +165,7 @@ export class AdminService {
           : {}),
       },
       orderBy: [{ capturedAt: 'desc' }, { id: 'desc' }],
-      take: (query.limit ?? 50) + 1,
+      take: limit + 1,
       select: {
         id: true,
         eventId: true,
@@ -178,7 +181,6 @@ export class AdminService {
         receivedAt: true,
       },
     });
-    const limit = query.limit ?? 50;
     const hasMore = items.length > limit;
     const page = hasMore ? items.slice(0, limit) : items;
     const last = page.at(-1);

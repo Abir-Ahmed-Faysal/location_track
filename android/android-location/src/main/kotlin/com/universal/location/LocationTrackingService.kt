@@ -45,14 +45,20 @@ class LocationTrackingService : Service() {
 
         _isServiceRunning.value = true
 
-        val engine = activeEngine
+        val engine = activeEngine ?: LocationTrackingRuntime.engineFactory
+            ?.create(applicationContext)
+            ?.also { activeEngine = it }
+        if (engine?.locationCapturer == null) {
+            stopForeground(true)
+            _isServiceRunning.value = false
+            stopSelf()
+            return START_NOT_STICKY
+        }
         captureJob?.cancel()
-        if (engine != null && engine.locationCapturer != null) {
-            captureJob = serviceScope.launch {
-                engine.locationCapturer.locations(engine.profile).collect { locationEvent ->
-                    engine.recordEvent(locationEvent)
-                    LocationSyncWorker.enqueue(applicationContext)
-                }
+        captureJob = serviceScope.launch {
+            engine.locationCapturer.locations(engine.profile).collect { locationEvent ->
+                engine.recordEvent(locationEvent)
+                LocationSyncWorker.enqueue(applicationContext)
             }
         }
 
@@ -115,4 +121,13 @@ class LocationTrackingService : Service() {
             activeEngine = null
         }
     }
+}
+
+/** Process-recreation hook used by host applications to rebuild the tracking engine. */
+fun interface LocationEngineFactory {
+    fun create(context: Context): UniversalLocationEngine?
+}
+
+object LocationTrackingRuntime {
+    @Volatile var engineFactory: LocationEngineFactory? = null
 }

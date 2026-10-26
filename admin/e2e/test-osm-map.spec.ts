@@ -1,13 +1,17 @@
 import { test, expect } from '@playwright/test';
 
 test('OpenStreetMap rendering E2E verification', async ({ page }) => {
-  await page.goto('https://location-tracker-admin-lyart.vercel.app/login');
-  await page.locator('#email').fill('fr.abir.ahmed.faysal@gmail.com');
-  await page.locator('#password').fill('Ae100ae100@');
+  const email = process.env.E2E_ADMIN_EMAIL;
+  const password = process.env.E2E_ADMIN_PASSWORD;
+  test.skip(!email || !password, 'Set E2E_ADMIN_EMAIL and E2E_ADMIN_PASSWORD for live verification');
+
+  await page.goto('/login');
+  await page.locator('#email').fill(email!);
+  await page.locator('#password').fill(password!);
   await page.locator('button[type="submit"]').click();
 
   await page.waitForTimeout(4000);
-  await page.goto('https://location-tracker-admin-lyart.vercel.app/admin/map');
+  await page.goto('/admin/map');
   await page.waitForTimeout(5000);
 
   const mapCanvas = page.locator('.map-canvas');

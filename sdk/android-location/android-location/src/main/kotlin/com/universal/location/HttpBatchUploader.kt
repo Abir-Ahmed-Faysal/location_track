@@ -42,9 +42,9 @@ class HttpBatchUploader(
     private val apiBaseUrl: String,
     private val authToken: String? = null,
     private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .writeTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(45, TimeUnit.SECONDS)
+        .readTimeout(45, TimeUnit.SECONDS)
+        .writeTimeout(45, TimeUnit.SECONDS)
         .build(),
     private val gson: Gson = Gson(),
 ) : BatchUploader {
@@ -114,6 +114,6 @@ private fun LocationEvent.toJsonDto(): LocationEventJson = LocationEventJson(
     provider = provider,
     altitudeM = altitudeMeters,
     speedMps = speedMps,
-    bearingDeg = bearingDegrees,
+    bearingDegrees = bearingDegrees,
     mockLocationIndicator = isMock,
 )

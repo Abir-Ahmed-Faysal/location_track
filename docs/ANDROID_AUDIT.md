@@ -290,3 +290,22 @@ Acceptance: debug/release builds, lint, JVM/instrumented tests, and physical-dev
 | Backend/admin source integration inspection | PASS |
 
 This document is an audit and remediation plan only. Broad implementation changes must wait until the findings and batch order are approved or explicitly requested.
+
+## 8. Implementation progress after audit approval
+
+The following narrow stabilization changes have now been made, but Android compilation and device verification are still pending:
+
+- Added visible configuration errors instead of silent operational no-ops.
+- Added a process-recreation factory for the foreground tracking service.
+- Added a process-recreation factory for WorkManager synchronization.
+- Made the worker drain a bounded number of acknowledged batches per run.
+- Removed Room's `allowMainThreadQueries()` usage from the queue builder.
+- Removed destructive Room migration fallback; future schema changes must provide explicit migrations.
+- Moved the manual fresh-fix queue write onto the IO dispatcher.
+- Added Android Keystore-backed access-token storage with one-time migration from the legacy preference key.
+- Added a background-location permission request after foreground permission approval.
+- Corrected backend realtime publication to use the canonical internal device ID.
+
+These changes partially address AND-001 through AND-008 and AND-012. They do not replace the required Android build, lint, instrumentation, physical-device, process-death, permission, and end-to-end realtime verification.
+
+The admin verification harness was also hardened: production Playwright specs no longer contain embedded credentials, and `admin/e2e/realtime.spec.ts` now defines an environment-driven live test that uploads a real event and verifies the admin device response refresh. In the current environment, the live test was skipped because no backend, database, live credentials, or device ID were configured.

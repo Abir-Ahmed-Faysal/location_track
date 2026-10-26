@@ -165,7 +165,9 @@ export class LocationsService {
       acceptedSet.has(item.eventId),
     )) {
       this.realtime.publishLocation({
-        deviceId: event.deviceId,
+        // Realtime subscribers join rooms using the canonical internal device ID.
+        // Android clients may upload the registered external device key.
+        deviceId: deviceMap.get(event.deviceId) ?? event.deviceId,
         eventId: event.eventId,
         capturedAt: event.capturedAt.toISOString(),
         latitude: event.latitude,

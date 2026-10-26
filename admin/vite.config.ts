@@ -6,5 +6,11 @@ export default defineConfig({
   optimizeDeps: { exclude: ['maplibre-gl'] },
   resolve: { dedupe: ['react', 'react-dom'] },
   server: { host: '::', port: 3000, strictPort: true },
-  test: { environment: 'jsdom', setupFiles: ['./src/test/setup.ts'], css: true },
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    css: true,
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    exclude: ['node_modules/**', 'e2e/**'],
+  },
 });

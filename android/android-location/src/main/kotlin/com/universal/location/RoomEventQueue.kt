@@ -77,8 +77,6 @@ class RoomEventQueue private constructor(
                 LocationQueueDatabase::class.java,
                 "universal-location-events.db",
             )
-                .allowMainThreadQueries()
-                .fallbackToDestructiveMigration()
                 .build()
             return RoomEventQueue(database.events(), maxSize)
         }
