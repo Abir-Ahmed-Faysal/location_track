@@ -180,6 +180,9 @@ class MainViewModel : ViewModel() {
 
         if (hasValidConfiguration()) {
             applyEngineConfig(appContext)
+            if (TrackingSettings.isTrackingEnabled(appContext)) {
+                startTracking(appContext)
+            }
         }
     }
 
@@ -455,6 +458,7 @@ class MainViewModel : ViewModel() {
             Toast.makeText(context, "Grant location permission first", Toast.LENGTH_LONG).show()
             return
         }
+        TrackingSettings.setTrackingEnabled(context, true)
         engine.startTracking()
         LocationTrackingService.start(context.applicationContext, engine)
         refreshDiagnostics()
@@ -462,6 +466,7 @@ class MainViewModel : ViewModel() {
 
     fun stopTracking(context: Context) {
         val engine = configuredEngine(context) ?: return
+        TrackingSettings.setTrackingEnabled(context, false)
         engine.stopTracking()
         LocationTrackingService.stop(context.applicationContext)
         refreshDiagnostics()
