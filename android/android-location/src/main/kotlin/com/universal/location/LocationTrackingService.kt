@@ -28,6 +28,7 @@ class LocationTrackingService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
     private var captureJob: Job? = null
     private var heartbeatJob: Job? = null
+    @Volatile private var lastLocationCapturedAt = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -60,6 +61,7 @@ class LocationTrackingService : Service() {
         captureJob?.cancel()
         captureJob = serviceScope.launch {
             engine.locationCapturer.locations(engine.profile).collect { locationEvent ->
+                lastLocationCapturedAt = System.currentTimeMillis()
                 engine.recordEvent(locationEvent)
                 LocationSyncWorker.enqueue(applicationContext)
             }
@@ -70,10 +72,13 @@ class LocationTrackingService : Service() {
         if (heartbeatSender != null) {
             heartbeatJob = serviceScope.launch {
                 while (isActive) {
-                    try {
-                        heartbeatSender.send()
-                    } catch (_: Exception) {
-                        // Keep the tracking service alive; the next interval retries the heartbeat.
+                    val elapsed = System.currentTimeMillis() - lastLocationCapturedAt
+                    if (lastLocationCapturedAt == 0L || elapsed >= HEARTBEAT_INTERVAL_MS) {
+                        try {
+                            heartbeatSender.send()
+                        } catch (_: Exception) {
+                            // Keep the tracking service alive; the next interval retries the heartbeat.
+                        }
                     }
                     delay(HEARTBEAT_INTERVAL_MS)
                 }
@@ -118,7 +123,7 @@ class LocationTrackingService : Service() {
     companion object {
         const val CHANNEL_ID = "location_tracking_channel"
         const val NOTIFICATION_ID = 1001
-        private const val HEARTBEAT_INTERVAL_MS = 60_000L
+        private const val HEARTBEAT_INTERVAL_MS = 180_000L
 
         private val _isServiceRunning = MutableStateFlow(false)
         val isServiceRunning: StateFlow<Boolean> = _isServiceRunning.asStateFlow()
