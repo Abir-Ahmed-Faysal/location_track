@@ -12,7 +12,8 @@
     <application
         android:name=".LocationSyncApplication"
         android:allowBackup="true"
-        android:icon="@android:drawable/ic_menu_mylocation"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
         android:label="Universal Location Demo"
         android:supportsRtl="true"
         android:usesCleartextTraffic="false">
