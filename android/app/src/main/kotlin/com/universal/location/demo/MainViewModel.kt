@@ -36,6 +36,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.time.Duration
 import java.time.Instant
+import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
@@ -46,6 +47,7 @@ class MainViewModel : ViewModel() {
     private val PREFS_NAME = "ule_settings_prefs"
     private val KEY_API_URL = "api_base_url"
     private val KEY_DEVICE_ID = "device_id"
+    private val KEY_ACCOUNT_DEVICE_PREFIX = "device_id_account_"
     private val DEFAULT_PROD_URL = "https://ule-backend.onrender.com/api/v1"
 
     val apiBaseUrl = MutableStateFlow(DEFAULT_PROD_URL)
@@ -137,17 +139,20 @@ class MainViewModel : ViewModel() {
                     .build()
                 client.newCall(request).execute().use { response ->
                     if (response.isSuccessful) {
-                        if (BuildConfig.DEBUG) {
-                            // Development builds may test multiple accounts on one phone.
-                            assignNewEnrollmentDeviceId(appContext)
-                        }
+                        assignNewEnrollmentDeviceId(appContext, emailInput)
                         viewModelScope.launch(Dispatchers.Main) {
                             Toast.makeText(appContext, "Account created. Signing in and requesting device approval…", Toast.LENGTH_LONG).show()
                         }
                         loginUser(appContext, emailInput, passwordInput)
                     } else {
+                        val errorBody = response.body?.string().orEmpty()
+                        val errorMessage = apiErrorMessage(errorBody)
                         viewModelScope.launch(Dispatchers.Main) {
-                            Toast.makeText(appContext, "Registration failed (${response.code}). Email may already be registered.", Toast.LENGTH_LONG).show()
+                            Toast.makeText(
+                                appContext,
+                                errorMessage ?: "Registration failed (${response.code}).",
+                                Toast.LENGTH_LONG,
+                            ).show()
                         }
                     }
                 }
@@ -209,6 +214,7 @@ class MainViewModel : ViewModel() {
         }
         viewModelScope.launch(Dispatchers.IO) {
             try {
+                useAccountDeviceId(appContext, emailInput)
                 val client = OkHttpClient.Builder()
                     .connectTimeout(15, TimeUnit.SECONDS)
                     .build()
@@ -331,13 +337,40 @@ class MainViewModel : ViewModel() {
         return generated
     }
 
-    private fun assignNewEnrollmentDeviceId(appContext: Context) {
+    private fun accountDeviceKey(email: String): String =
+        "$KEY_ACCOUNT_DEVICE_PREFIX${email.trim().lowercase(Locale.ROOT)}"
+
+    private fun apiErrorMessage(body: String): String? {
+        val payload = runCatching {
+            Gson().fromJson(body, Map::class.java) as? Map<*, *>
+        }.getOrNull() ?: return null
+        val error = payload["error"] as? Map<*, *> ?: return null
+        return when (val message = error["message"]) {
+            is String -> message
+            is List<*> -> message.joinToString(", ")
+            else -> null
+        }
+    }
+
+    private fun assignNewEnrollmentDeviceId(appContext: Context, email: String) {
         val generated = "android-${UUID.randomUUID()}"
         appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_DEVICE_ID, generated)
+            .putString(accountDeviceKey(email), generated)
             .apply()
         deviceId.value = generated
+    }
+
+    private fun useAccountDeviceId(appContext: Context, email: String) {
+        val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val accountKey = accountDeviceKey(email)
+        val accountId = prefs.getString(accountKey, null)?.trim()
+        val selected = if (!accountId.isNullOrBlank()) accountId else deviceId.value.trim()
+        if (selected.isNotBlank()) {
+            prefs.edit().putString(accountKey, selected).putString(KEY_DEVICE_ID, selected).apply()
+            deviceId.value = selected
+        }
     }
 
     private fun applyEngineConfig(appContext: Context) {
