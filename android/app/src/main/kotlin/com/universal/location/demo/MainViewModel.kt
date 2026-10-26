@@ -137,7 +137,10 @@ class MainViewModel : ViewModel() {
                     .build()
                 client.newCall(request).execute().use { response ->
                     if (response.isSuccessful) {
-                        assignNewEnrollmentDeviceId(appContext)
+                        if (BuildConfig.DEBUG) {
+                            // Development builds may test multiple accounts on one phone.
+                            assignNewEnrollmentDeviceId(appContext)
+                        }
                         viewModelScope.launch(Dispatchers.Main) {
                             Toast.makeText(appContext, "Account created. Signing in and requesting device approval…", Toast.LENGTH_LONG).show()
                         }
