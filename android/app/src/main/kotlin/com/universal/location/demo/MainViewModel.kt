@@ -137,6 +137,7 @@ class MainViewModel : ViewModel() {
                     .build()
                 client.newCall(request).execute().use { response ->
                     if (response.isSuccessful) {
+                        assignNewEnrollmentDeviceId(appContext)
                         viewModelScope.launch(Dispatchers.Main) {
                             Toast.makeText(appContext, "Account created. Signing in and requesting device approval…", Toast.LENGTH_LONG).show()
                         }
@@ -325,6 +326,15 @@ class MainViewModel : ViewModel() {
         }
         prefs.edit().putString(KEY_DEVICE_ID, generated).apply()
         return generated
+    }
+
+    private fun assignNewEnrollmentDeviceId(appContext: Context) {
+        val generated = "android-${UUID.randomUUID()}"
+        appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_DEVICE_ID, generated)
+            .apply()
+        deviceId.value = generated
     }
 
     private fun applyEngineConfig(appContext: Context) {
