@@ -59,6 +59,7 @@ class FusedLocationCapturer(
 
             @SuppressLint("MissingPermission")
             fusedClient.requestLocationUpdates(locationRequest, callback, Looper.getMainLooper())
+                .addOnFailureListener { error -> close(error) }
 
             awaitClose {
                 fusedClient.removeLocationUpdates(callback)
@@ -69,22 +70,28 @@ class FusedLocationCapturer(
             }
 
             @SuppressLint("MissingPermission")
-            if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                locationManager.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER,
-                    profile.intervalSeconds * 1000L,
-                    profile.minDisplacementMeters,
-                    listener,
-                    Looper.getMainLooper(),
-                )
-            } else if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-                locationManager.requestLocationUpdates(
-                    LocationManager.NETWORK_PROVIDER,
-                    profile.intervalSeconds * 1000L,
-                    profile.minDisplacementMeters,
-                    listener,
-                    Looper.getMainLooper(),
-                )
+            try {
+                if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                    locationManager.requestLocationUpdates(
+                        LocationManager.GPS_PROVIDER,
+                        profile.intervalSeconds * 1000L,
+                        profile.minDisplacementMeters,
+                        listener,
+                        Looper.getMainLooper(),
+                    )
+                } else if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+                    locationManager.requestLocationUpdates(
+                        LocationManager.NETWORK_PROVIDER,
+                        profile.intervalSeconds * 1000L,
+                        profile.minDisplacementMeters,
+                        listener,
+                        Looper.getMainLooper(),
+                    )
+                } else {
+                    close(IllegalStateException("No location provider is enabled"))
+                }
+            } catch (error: Exception) {
+                close(error)
             }
 
             awaitClose {

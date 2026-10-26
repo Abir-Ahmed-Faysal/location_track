@@ -38,7 +38,7 @@ class LocationSyncApplication : Application() {
         val queue = RoomEventQueue.create(context)
         return UniversalLocationEngine.Builder()
             .apiBaseUrl(config.apiUrl)
-            .trackingProfile(TrackingProfile.BALANCED)
+            .trackingProfile(TrackingSettings.getProfile(context))
             .eventQueue(queue)
             .locationCapturer(FusedLocationCapturer(context, config.deviceId))
             .permissionManager(AndroidPermissionManager(context))

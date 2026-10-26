@@ -9,6 +9,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.delay
 
 /** Host application supplies these dependencies from its DI container. */
 fun interface SyncWorkerDependencies {
@@ -34,10 +35,14 @@ class LocationSyncWorker(
             ?: LocationSyncRuntime.dependenciesFactory?.create(applicationContext)
             ?: return Result.retry()
 
-        repeat(MAX_BATCHES_PER_RUN) {
+        repeat(MAX_BATCHES_PER_RUN) { batchIndex ->
             when (val result = dependencies.sync()) {
                 is UploadResult.Acknowledged -> {
                     if (result.accepted.isEmpty() && result.duplicates.isEmpty()) {
+                        if (batchIndex < EMPTY_QUEUE_GRACE_CHECKS) {
+                            delay(EMPTY_QUEUE_GRACE_DELAY_MS)
+                            return@repeat
+                        }
                         return Result.success()
                     }
                 }
@@ -50,6 +55,8 @@ class LocationSyncWorker(
 
     companion object {
         private const val MAX_BATCHES_PER_RUN = 20
+        private const val EMPTY_QUEUE_GRACE_CHECKS = 1
+        private const val EMPTY_QUEUE_GRACE_DELAY_MS = 500L
 
         fun enqueue(context: Context) {
             val request = OneTimeWorkRequestBuilder<LocationSyncWorker>()
@@ -62,10 +69,9 @@ class LocationSyncWorker(
                 .build()
             WorkManager.getInstance(context).enqueueUniqueWork(
                 "universal-location-sync",
-                // A location can be captured while the current worker is in its
-                // final queue check. APPEND_OR_REPLACE preserves that enqueue
-                // instead of dropping it like KEEP does for running work.
-                ExistingWorkPolicy.APPEND_OR_REPLACE,
+                // One worker drains the durable Room queue. KEEP prevents every
+                // GPS callback from creating another chained worker while offline.
+                ExistingWorkPolicy.KEEP,
                 request,
             )
         }

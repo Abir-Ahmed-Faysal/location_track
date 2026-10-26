@@ -60,10 +60,17 @@ class LocationTrackingService : Service() {
         }
         captureJob?.cancel()
         captureJob = serviceScope.launch {
-            engine.locationCapturer.locations(engine.profile).collect { locationEvent ->
-                lastLocationCapturedAt = System.currentTimeMillis()
-                engine.recordEvent(locationEvent)
-                LocationSyncWorker.enqueue(applicationContext)
+            while (isActive) {
+                try {
+                    engine.locationCapturer.locations(engine.profile).collect { locationEvent ->
+                        lastLocationCapturedAt = System.currentTimeMillis()
+                        _latestLocation.value = locationEvent
+                        engine.recordEvent(locationEvent)
+                        LocationSyncWorker.enqueue(applicationContext)
+                    }
+                } catch (_: Exception) {
+                    if (isActive) delay(CAPTURE_RESTART_DELAY_MS)
+                }
             }
         }
 
@@ -124,9 +131,12 @@ class LocationTrackingService : Service() {
         const val CHANNEL_ID = "location_tracking_channel"
         const val NOTIFICATION_ID = 1001
         private const val HEARTBEAT_INTERVAL_MS = 180_000L
+        private const val CAPTURE_RESTART_DELAY_MS = 5_000L
 
         private val _isServiceRunning = MutableStateFlow(false)
         val isServiceRunning: StateFlow<Boolean> = _isServiceRunning.asStateFlow()
+        private val _latestLocation = MutableStateFlow<LocationEvent?>(null)
+        val latestLocation: StateFlow<LocationEvent?> = _latestLocation.asStateFlow()
 
         @Volatile var activeEngine: UniversalLocationEngine? = null
 

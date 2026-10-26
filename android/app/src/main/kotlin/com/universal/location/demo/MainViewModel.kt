@@ -28,6 +28,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import okhttp3.MediaType.Companion.toMediaType
@@ -71,6 +72,7 @@ class MainViewModel : ViewModel() {
 
     private var connectivityJob: Job? = null
     private var engineStatusJob: Job? = null
+    private var serviceLocationJob: Job? = null
     private var approvalJob: Job? = null
     private val _adminSettingsUnlocked = MutableStateFlow(false)
     val adminSettingsUnlocked: StateFlow<Boolean> = _adminSettingsUnlocked.asStateFlow()
@@ -168,6 +170,12 @@ class MainViewModel : ViewModel() {
 
     fun initEngine(context: Context) {
         val appContext = context.applicationContext
+        serviceLocationJob?.cancel()
+        serviceLocationJob = viewModelScope.launch {
+            LocationTrackingService.latestLocation.collect { event ->
+                if (event != null) _lastCapturedEvent.value = event
+            }
+        }
         val prefs: SharedPreferences = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
         val savedUrl = prefs.getString(KEY_API_URL, DEFAULT_PROD_URL) ?: DEFAULT_PROD_URL
@@ -177,6 +185,7 @@ class MainViewModel : ViewModel() {
         apiBaseUrl.value = savedUrl
         deviceId.value = savedDeviceId
         authToken.value = savedToken
+        trackingProfile.value = TrackingSettings.getProfile(appContext)
 
         if (hasValidConfiguration()) {
             applyEngineConfig(appContext)
@@ -249,11 +258,19 @@ class MainViewModel : ViewModel() {
                             SecureTokenStore(appContext).write(token, refreshToken)
                             approvalJob?.cancel()
                             approvalJob = viewModelScope.launch(Dispatchers.IO) {
+                                val authSession = AuthSession(appContext, apiBaseUrl.value)
+                                var currentToken = token!!
                                 while (true) {
                                     delay(10_000)
-                                    val current = registerDevice(client, token)
+                                    val current = registerDevice(client, currentToken)
+                                    if (current.authExpired) {
+                                        val refreshed = authSession.refreshAccessToken()
+                                        if (refreshed.isNullOrBlank()) break
+                                        currentToken = refreshed
+                                        continue
+                                    }
                                     if (current.approved) {
-                                        authToken.value = token
+                                        authToken.value = currentToken
                                         applyEngineConfig(appContext)
                                         startTracking(appContext)
                                         launch(Dispatchers.Main) {
@@ -309,6 +326,7 @@ class MainViewModel : ViewModel() {
                     RegistrationResult(
                         null,
                         serverMessage ?: "Device link failed (${response.code}). Check the device ID and account.",
+                        authExpired = response.code == 401,
                     )
                 }
             }
@@ -317,7 +335,11 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    private data class RegistrationResult(val status: String?, val message: String) {
+    private data class RegistrationResult(
+        val status: String?,
+        val message: String,
+        val authExpired: Boolean = false,
+    ) {
         val approved: Boolean get() = status == "ACTIVE"
     }
 
@@ -409,6 +431,8 @@ class MainViewModel : ViewModel() {
             .permissionManager(permissions)
             .connectivityMonitor(connectivity)
             .build()
+
+        TrackingSettings.setProfile(appContext, trackingProfile.value)
 
         LocationSyncRuntime.dependencies = SyncWorkerDependencies {
             val uploader = HttpBatchUploader(
